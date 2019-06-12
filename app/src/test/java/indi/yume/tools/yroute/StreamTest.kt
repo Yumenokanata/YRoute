@@ -13,6 +13,8 @@ import java.io.FileReader
 import java.io.FileWriter
 import arrow.effects.extensions.io.fx.fx
 import arrow.effects.extensions.io.monad.monad
+import io.kotlintest.properties.Gen
+import io.kotlintest.properties.forAll
 import java.io.BufferedReader
 import java.util.*
 

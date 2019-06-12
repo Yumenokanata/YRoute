@@ -35,12 +35,12 @@ class MainActivity : BaseActivity() {
         }
 
         findViewById<Button>(R.id.fragment_stack_button).setOnClickListener {
-            StackActivityRoute.startStackFragActivity<BaseFragment>()
-                .withParam(ActivityBuilder(FragmentStackActivity::class.java))
-                .start(core)
-                .unsafeRunAsync { result ->
-                    Logger.d("FragmentStackActivity", result.toString())
-                }
+//            StackActivityRoute.startStackFragActivity<BaseFragment>()
+//                .withParam(ActivityBuilder(FragmentStackActivity::class.java))
+//                .start(core)
+//                .unsafeRunAsync { result ->
+//                    Logger.d("FragmentStackActivity", result.toString())
+//                }
 //            recreate()
         }
     }

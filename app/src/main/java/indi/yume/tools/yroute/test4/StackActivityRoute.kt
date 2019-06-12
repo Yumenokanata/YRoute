@@ -136,6 +136,43 @@ enum class FinishResult {
 object StackActivityRoute {
 
     //<editor-fold defaultstate="collapsed" desc="Routes">
+    fun <F> stackActivitySelecter()
+            : YRoute<ActivitiesState, StackActivity<F>, Lens<ActivitiesState, StackActivityData<F>?>> =
+        routeF { state, routeCxt, stackActivity ->
+            val item = state.list.firstOrNull { it.hashTag == stackActivity.controller.hashTag }
+
+            val result = if (item == null) {
+                state toT Fail("Can not find target stackActivityData: target=$stackActivity, but stack is ${state.list.joinToString()}")
+            } else if (item !is StackActivityData<*> && item.activity is FragmentActivity) {
+                val stackData = StackActivityData(activity = item.activity as FragmentActivity,
+                    hashTag = item.hashTag,
+                    controller = stackActivity,
+                    state = StackFragActState(stackActivity.initStack))
+                state.copy(list = state.list.map {
+                    if (it.hashTag == stackData.hashTag) stackData else it
+                }) toT Success(stackActivityLens(stackActivity))
+            } else {
+                state toT Success(stackActivityLens(stackActivity))
+            }
+
+            IO.just(result)
+        }
+
+    fun <F> stackActivityLens(stackActivity: StackActivity<F>): Lens<ActivitiesState, StackActivityData<F>?> = Lens(
+        get = { state ->
+            val item = state.list.firstOrNull { it.hashTag == stackActivity.controller.hashTag }
+            if (item != null && item is StackActivityData<*>)
+                item as StackActivityData<F>
+            else null
+        },
+        set = { state, item ->
+            if (item == null)
+                state
+            else
+                state.copy(list = state.list.map { if (it.hashTag == item.hashTag) item else it })
+        }
+    )
+
     fun <F> stackActivityGetter(stackActivity: StackActivity<F>): ReaderT<EitherPartialOf<Fail>, ActivitiesState, StackActivityData<F>> =
         ReaderT { state ->
             when (val target = state.list.firstOrNull { it.hashTag == stackActivity.controller.hashTag }) {
@@ -247,8 +284,9 @@ object StackActivityRoute {
             }
         }
 
-    fun <T : Fragment> startStackFragActivity(): YRoute<ActivitiesState, ActivityBuilder<FragmentActivity>, FragmentActivity> =
-        ActivitiesRoute.createActivityIntent<FragmentActivity, ActivitiesState>()
+    inline fun <T, reified A> startStackFragActivity(): YRoute<ActivitiesState, ActivityBuilder<A>, A>
+            where T : Fragment, A : FragmentActivity, A : StackActivity<T> =
+        ActivitiesRoute.createActivityIntent<A, ActivitiesState>()
             .transform { vd, cxt, intent ->
                 binding {
                     val top: Context = vd.list.lastOrNull()?.activity ?: cxt.app
@@ -261,14 +299,14 @@ object StackActivityRoute {
                     if (act !is StackActivity<*> || act !is ActivityLifecycleOwner) {
                         vd.copy(list = vd.list + ActivityData(act, act.hashCode())) toT
                                 Result.fail("Stack Activity must implements `StackActivity` interface.")
-                    } else if (cxt.checkComponentClass(intent, act) && act is FragmentActivity) {
+                    } else if (cxt.checkComponentClass(intent, act) && act is A) {
                         val stack = act as StackActivity<T>
                         val defaultType = act.initStack as StackType<T>
                         val hashTag = act.hashCode()
                         !IO { act.controller.hashTag = hashTag }
 
                         vd.copy(list = vd.list + StackActivityData(act, hashTag, stack, StackFragActState<T>(defaultType))) toT
-                                Result.success<FragmentActivity>(act)
+                                Result.success<A>(act)
                     } else {
                         vd.copy(list = vd.list + ActivityData(act, act.hashCode())) toT
                                 Result.fail("startActivity | start activity is Success, but can not get target activity: " +
@@ -614,4 +652,19 @@ object StackActivityRoute {
             }
         }
     //</editor-fold>
+
+    inline fun <F, reified A> routeStartStackActivity()
+            : YRoute<ActivitiesState, ActivityBuilder<A>, A>
+            where F : Fragment, A : FragmentActivity, A : StackActivity<F> =
+            startStackFragActivity()
+
+    fun <F> routeStartFragment(): YRoute<StackActivityData<F>, FragmentBuilder<F>, F> where F : Fragment =
+            startFragment()
+
+    fun <F> routeStartFragmentAtStackActivity()
+            : YRoute<ActivitiesState, Tuple2<StackActivity<F>, FragmentBuilder<F>>, F> where F : Fragment =
+        stackActivitySelecter<F>()
+            .composeState(startFragment<F>().stateNullable())
+
+
 }

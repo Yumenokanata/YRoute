@@ -24,6 +24,7 @@ import arrow.generic.coproduct2.Second
 import arrow.generic.coproduct2.fold
 import arrow.generic.coproduct3.Coproduct3
 import arrow.generic.coproduct3.fold
+import arrow.optics.Iso
 import arrow.optics.Lens
 import indi.yume.tools.yroute.Logger
 import io.reactivex.Completable
@@ -77,6 +78,8 @@ fun <S, T, R> YRoute<S, T, R>.runRoute(state: S, cxt: RouteCxt, t: T): IO<Tuple2
 fun <S, T, R> YRoute<S, T, R>.toAction(param: T): EngineAction<S, T, R> =
     this@toAction toT param
 
+fun <S, T> routeId(): YRoute<S, T, T> = routeF { s, c, t -> IO.just(s toT Success(t)) }
+
 fun <S, T> routeJustIO(io: IO<Unit>): YRoute<S, T, Unit> =
     routeF { state, _, _ -> io.map { state toT Success(Unit) } }
 
@@ -91,6 +94,56 @@ fun <S, T, R, R2> YRoute<S, T, R>.flatMapR(f: (R) -> YRoute<S, T, R2>): YRoute<S
                 }
             }
         }
+
+fun <S1, T1, S2, T2, R> YRoute<S1, T1, Lens<S1, S2>>.composeState(route: YRoute<S2, T2, R>): YRoute<S1, Tuple2<T1, T2>, R> =
+        routeF { state1, cxt, (t1, t2) ->
+            binding {
+                val (innerState1, lensResult) = !this@composeState.runRoute(state1, cxt, t1)
+
+                when (lensResult) {
+                    is Fail -> innerState1 toT lensResult
+                    is Success -> {
+                        val state2 = lensResult.t.get(state1)
+                        val (newState2, result) = !route.runRoute(state2, cxt, t2)
+                        val newState1 = lensResult.t.set(innerState1, newState2)
+                        newState1 toT result
+                    }
+                }
+            }
+        }
+
+fun <S : Any, T, R> YRoute<S, T, R>.stateNullable(): YRoute<S?, T, R> =
+    routeF { state, cxt, param ->
+        if (state == null)
+            IO.just(state toT Fail("State is null, can not get state."))
+        else
+            this@stateNullable.runRoute(state, cxt, param)
+    }
+
+fun <S1, T1, T, S2, R> YRoute<S2, T1, R>.changeState(f: (T) -> Lens<S1, S2>): YRoute<S1, Tuple2<T, T1>, R> =
+    mapParam(type<Tuple2<T, T1>>()) { it.b }.transStateByParam { f(it.a) }
+
+fun <S1, T, S2, R> YRoute<S2, T, R>.transStateByParam(f: (T) -> Lens<S1, S2>): YRoute<S1, T, R> =
+    routeF { state1, cxt, param ->
+        binding {
+            val lens = f(param)
+            val state2 = lens.get(state1)
+            val (newState1, result) = !this@transStateByParam.runRoute(state2, cxt, param)
+
+            val newState2 = lens.set(state1, newState1)
+            newState2 toT result
+        }
+    }
+
+fun <S1, S2, R> YRoute<S2, Lens<S1, S2>, R>.apForState(): YRoute<S1, Lens<S1, S2>, R> =
+    routeF { state1, cxt, lens ->
+        binding {
+            val state2 = lens.get(state1)
+            val (newState1, result) = !this@apForState.runRoute(state2, cxt, lens)
+            val newState2 = lens.set(state1, newState1)
+            newState2 toT result
+        }
+    }
 
 fun <S, T, T1, R> YRoute<S, T, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S, Result<R>>>): YRoute<S, T, R> =
     routeF { state, cxt, param ->
@@ -108,6 +161,17 @@ fun <S, T, T1, R> YRoute<S, T, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S
 fun <S, T, R> transformRoute(f: (T) -> R): YRoute<S, T, R> =
     routeF { state, cxt, param -> IO.just(state toT Success(f(param))) }
 
+fun <S1, S2, T, R> YRoute<S1, T, R>.mapStateF(lensF: () -> Lens<S2, S1>): YRoute<S2, T, R> =
+    routeF { state2, cxt, param ->
+        val lens = lensF()
+        val state1 = lens.get(state2)
+        binding {
+            val (newState1, result) = !this@mapStateF.runRoute(state1, cxt, param)
+            val newState2 = lens.set(state2, newState1)
+            newState2 toT result
+        }
+    }
+
 fun <S1, S2, T, R> YRoute<S1, T, R>.mapState(lens: Lens<S2, S1>): YRoute<S2, T, R> =
     routeF { state2, cxt, param ->
         val state1 = lens.get(state2)
@@ -117,6 +181,9 @@ fun <S1, S2, T, R> YRoute<S1, T, R>.mapState(lens: Lens<S2, S1>): YRoute<S2, T, 
             newState2 toT result
         }
     }
+
+fun <S, T1, T2, R> YRoute<S, T1, R>.plusParam(type: TypeCheck<T2>): YRoute<S, Tuple2<T1, T2>, R> =
+        mapParam { it.a }
 
 fun <S, T1, T2, R> YRoute<S, T1, R>.mapParam(type: TypeCheck<T2> = type(), f: (T2) -> T1): YRoute<S, T2, R> =
     routeF { state, cxt, param -> this@mapParam.runRoute(state, cxt, f(param)) }
@@ -153,6 +220,10 @@ fun <S1, S2, T1, T2, R1, R2> zipRoute(route1: YRoute<S1, T1, R1>, route2: YRoute
             (newState1 toT newState2) toT result1.flatMap { r1 -> result2.map { r2 -> r1 toT r2 } }
         }
     }
+
+fun <S, T, R1, R2> YRoute<S, T, Tuple2<R1, R2>>.ignoreLeft(): YRoute<S, T, R2> = mapResult { it.b }
+
+fun <S, T, R1, R2> YRoute<S, T, Tuple2<R1, R2>>.ignoreRight(): YRoute<S, T, R1> = mapResult { it.a }
 
 fun <S, T, R> YRoute<S, T, R>.packageParam(): YRoute<S, T, Tuple2<T, R>> =
     routeF { state, cxt, param ->
