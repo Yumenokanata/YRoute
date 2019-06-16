@@ -89,6 +89,10 @@ sealed class FragmentLifeEvent {
     data class OnStart(val fragment: Fragment) : FragmentLifeEvent()
     data class OnResume(val fragment: Fragment) : FragmentLifeEvent()
     data class OnDestroy(val fragment: Fragment) : FragmentLifeEvent()
+
+    // Just for StackFragment, see [StackFragment#onFragmentResult()]
+    data class OnFragmentResult(val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
+        : FragmentLifeEvent()
 }
 //</editor-fold>
 

@@ -4,19 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import android.os.PersistableBundle
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
 import indi.yume.tools.yroute.test4.ActivityLifeEvent
 import indi.yume.tools.yroute.test4.ActivityLifecycleOwner
-import indi.yume.tools.yroute.test4.StackActivity
-import indi.yume.tools.yroute.test4.StackController
 import io.reactivex.subjects.Subject
 
 abstract class BaseActivity : Activity(), ActivityLifecycleOwner {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
-
-//    override lateinit var controller: StackController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

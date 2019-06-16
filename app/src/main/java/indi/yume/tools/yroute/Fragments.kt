@@ -14,7 +14,7 @@ import io.reactivex.subjects.Subject
 abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner {
     override val lifeSubject: Subject<FragmentLifeEvent> = FragmentLifecycleOwner.defaultLifeSubject()
 
-    override lateinit var controller: StackController
+    override var controller: FragController = FragController.defaultController()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,6 +35,10 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
     override fun onStart() {
         super.onStart()
         makeState(FragmentLifeEvent.OnStart(this))
+    }
+
+    override fun onFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
+        makeState(FragmentLifeEvent.OnFragmentResult(this, requestCode, resultCode, data))
     }
 
     override fun onResume() {

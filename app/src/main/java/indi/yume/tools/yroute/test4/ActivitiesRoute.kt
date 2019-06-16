@@ -8,10 +8,10 @@ import arrow.core.Either
 import arrow.core.Tuple2
 import arrow.core.andThen
 import arrow.core.toT
-import arrow.data.extensions.list.foldable.find
 import arrow.effects.IO
 import arrow.effects.extensions.io.monadDefer.binding
 import indi.yume.tools.yroute.Logger
+import indi.yume.tools.yroute.test4.lazy.lazyR
 import io.reactivex.Completable
 import io.reactivex.Single
 import kotlin.random.Random
@@ -47,18 +47,19 @@ open class ActivityBuilder<out A>(val clazz: Class<out A>) {
 
 object ActivitiesRoute {
     //<editor-fold defaultstate="collapsed" desc="Routes">
-    fun <T : Activity, VD> createActivityIntent(): YRoute<VD, ActivityBuilder<T>, Intent> = routeF { vd, cxt, param ->
-        IO { vd toT Result.success(param.createIntent(cxt)) }
-    }
+    fun <T : Activity, VD> createActivityIntent(builder: ActivityBuilder<T>): YRoute<VD, Intent> =
+        routeF { vd, cxt ->
+            IO { vd toT Result.success(builder.createIntent(cxt)) }
+        }
 
-    val startActivity: YRoute<ActivitiesState, Intent, Activity> =
-        routeF { vd, cxt, param ->
+    fun startActivity(intent: Intent): YRoute<ActivitiesState, Activity> =
+        routeF { vd, cxt ->
             Logger.d("startActivity", "start startActivity action")
             binding {
                 val top: Context = vd.list.lastOrNull()?.activity ?: cxt.app
 
-                Logger.d("startActivity", "startActivity: intent=$param")
-                !IO { top.startActivity(param) }
+                Logger.d("startActivity", "startActivity: intent=$intent")
+                !IO { top.startActivity(intent) }
 
                 Logger.d("startActivity", "wait activity.")
                 val (act) = cxt.bindNextActivity()
@@ -66,35 +67,37 @@ object ActivitiesRoute {
                 Logger.d("startActivity", "get activity: $act")
 
                 vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
-                        (if (cxt.checkComponentClass(param, act)) Result.success(act)
+                        (if (cxt.checkComponentClass(intent, act)) Result.success(act)
                         else Fail(
                             "startActivity | start activity is Success, but can not get target activity: " +
-                                    "target is ${param.component?.className} but get is $act", null))
+                                    "target is ${intent.component?.className} but get is $act", null
+                        ))
             }
         }
 
-    val startActivityForResult: YRoute<ActivitiesState, Tuple2<Intent, Int>, Activity> =
-        routeF { vd, cxt, (param, requestCode) ->
+    fun startActivityForResult(intent: Intent, requestCode: Int): YRoute<ActivitiesState, Activity> =
+        routeF { vd, cxt ->
             binding {
                 val top = vd.list.lastOrNull()?.activity
 
                 if (top != null) {
-                    !IO { top.startActivityForResult(param, requestCode) }
+                    !IO { top.startActivityForResult(intent, requestCode) }
 
                     val (act) = cxt.bindNextActivity()
                         .firstOrError().toIO()
 
                     vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
-                            (if (cxt.checkComponentClass(param, act)) Result.success(act)
+                            (if (cxt.checkComponentClass(intent, act)) Result.success(act)
                             else Fail(
                                 "startActivity | start activity is Success, but can not get target activity: " +
-                                        "target is ${param.component?.className} but get is $act", null))
+                                        "target is ${intent.component?.className} but get is $act", null
+                            ))
                 } else vd toT Fail("startActivityForRx has failed: have no top activity.", null)
             }
         }
 
-    val startActivityForRx: YRoute<ActivitiesState, RxActivityBuilder, Single<Tuple2<Int, Bundle?>>> =
-        routeF { vd, cxt, builder ->
+    fun startActivityForRx(builder: RxActivityBuilder): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+        routeF { vd, cxt ->
             binding {
                 val intent = builder.createIntent(cxt)
                 val top = vd.list.lastOrNull()?.activity
@@ -114,14 +117,16 @@ object ActivitiesRoute {
                             .filter { it.requestCode == requestCode }
                             .firstOrError()
                             .map { it.resultCode toT it.data?.extras })
-                    } else Fail("startActivityForRx | start activity is Success, but can not get target activity: " +
-                            "target is ${builder.clazz.simpleName} but get is $activity", null)
+                    } else Fail(
+                        "startActivityForRx | start activity is Success, but can not get target activity: " +
+                                "target is ${builder.clazz.simpleName} but get is $activity", null
+                    )
                 } else vd toT Fail("startActivityForRx has failed: have no top activity.", null)
             }
         }
 
-    val backActivity: YRoute<ActivitiesState, Unit, Unit> =
-        routeF { vd, cxt, _ ->
+    val backActivity: YRoute<ActivitiesState, Unit> =
+        routeF { vd, cxt ->
             binding {
                 val top = vd.list.lastOrNull()?.activity
 
@@ -135,54 +140,55 @@ object ActivitiesRoute {
             }
         }
 
-    val finishTargetActivity: YRoute<ActivitiesState, ActivityData, Unit> =
-        routeF { vd, cxt, activityItem ->
+    fun finishTargetActivity(targetData: ActivityData): YRoute<ActivitiesState, Unit> =
+        routeF { vd, cxt ->
             binding {
-                val targetItem = vd.list.find { it.hashTag == activityItem.hashTag }.orNull()
+                val targetItem = vd.list.firstOrNull { it.hashTag == targetData.hashTag }
 
                 if (targetItem != null) {
                     !IO { targetItem.activity.finish() }
 
-                    val newState = vd.copy(list = vd.list.filter { it.hashTag != activityItem.hashTag })
+                    val newState = vd.copy(list = vd.list.filter { it.hashTag != targetData.hashTag })
 
                     newState toT Success(Unit)
-                } else vd toT Fail("finishTargetActivity | failed, target item not find: " +
-                        "target=$activityItem but stack has ${vd.list.joinToString()}")
+                } else vd toT Fail(
+                    "finishTargetActivity | failed, target item not find: " +
+                            "target=$targetData but stack has ${vd.list.joinToString()}"
+                )
             }
         }
 
-    val findTargetActivityItem: YRoute<ActivitiesState, Activity, ActivityData?> =
-        routeF { vd, cxt, activity ->
+    fun findTargetActivityItem(activity: Activity): YRoute<ActivitiesState, ActivityData?> =
+        routeF { vd, cxt ->
             val item = vd.list.firstOrNull { it.activity === activity }
             IO.just(vd toT Success(item))
         }
     //</editor-fold>
 
-    val routeStartActivityByIntent: YRoute<ActivitiesState, Intent, Activity> =
-        startActivity
+    fun routeStartActivityByIntent(intent: Intent): YRoute<ActivitiesState, Activity> =
+        startActivity(intent)
 
-    val routeStartActivity: YRoute<ActivitiesState, ActivityBuilder<Activity>, Activity> =
-        createActivityIntent<Activity, ActivitiesState>().compose(startActivity)
+    fun <A : Activity> routeStartActivity(builder: ActivityBuilder<A>): YRoute<ActivitiesState, A> =
+        createActivityIntent<Activity, ActivitiesState>(builder).flatMapR { startActivity(it).ofType(type<A>()) }
 
-    val routeStartActivityForResult: YRoute<ActivitiesState, Tuple2<ActivityBuilder<Activity>, Int>, Activity> =
-        createActivityIntent<Activity, ActivitiesState>()
-            .zipWithFunc { requestCode: Int -> requestCode }
-            .compose(startActivityForResult)
+    fun routeStartActivityForResult(builder: ActivityBuilder<Activity>, requestCode: Int): YRoute<ActivitiesState, Activity> =
+        createActivityIntent<Activity, ActivitiesState>(builder)
+            .flatMapR { intent -> startActivityForResult(intent, requestCode) }
 
-    val routeStartActivityForRx: YRoute<ActivitiesState, RxActivityBuilder, Single<Tuple2<Int, Bundle?>>> =
-            startActivityForRx
+    fun routeStartActivityForRx(builder: RxActivityBuilder): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+            startActivityForRx(builder)
 
-    val routeFinishTop: YRoute<ActivitiesState, Unit, Unit> = backActivity
+    val routeFinishTop: YRoute<ActivitiesState, Unit> = backActivity
 
-    val routeFinish: YRoute<ActivitiesState, Activity, Unit> =
-        findTargetActivityItem
-            .composeWith { state, cxt, activity, item ->
+    fun routeFinish(activity: Activity): YRoute<ActivitiesState, Unit> =
+        findTargetActivityItem(activity)
+            .composeWith { state, cxt, item ->
                 binding {
                     if (item == null) {
                         !IO { activity.finish() }
                         state toT Success(Unit)
                     } else {
-                        !finishTargetActivity.runRoute(state, cxt, item)
+                        !finishTargetActivity(item).runRoute(state, cxt)
                     }
                 }
             }
@@ -191,24 +197,26 @@ object ActivitiesRoute {
 
 fun CoreEngine<ActivitiesState>.bindApp(): Completable =
     routeCxt.globalActivityLife.bindActivityLife()
-        .map { run(globalActivityLogic, it).unsafeRunAsync { either ->
+        .map { run(globalActivityLogic(it)).unsafeRunAsync { either ->
             if (either is Either.Left) either.a.printStackTrace()
         } }
         .ignoreElements()
 
 private const val SAVE_STORE_HASH_TAG = "manager__hash_tag"
 
-val globalActivityLogic: YRoute<ActivitiesState, ActivityLifeEvent, Unit> =
-    routeF { state, cxt, event ->
+fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit> =
+    routeF { state, cxt ->
         Logger.d("globalActivityLogic", "start deal event: $event")
-        when(event) {
+        when (event) {
             is ActivityLifeEvent.OnCreate -> {
                 val newState = if (state.list.all { it.activity !== event.activity }) {
-                    state.copy(list = state.list + ActivityData(
-                        event.activity,
-                        CoreID.get(),
-                        mapOf("message" to "this is globalActivityLogic auto generate ActivityData item.")
-                    ))
+                    state.copy(
+                        list = state.list + ActivityData(
+                            event.activity,
+                            CoreID.get(),
+                            mapOf("message" to "this is globalActivityLogic auto generate ActivityData item.")
+                        )
+                    )
                 } else {
                     val savedHashTag = event.savedInstanceState?.getString(SAVE_STORE_HASH_TAG)?.toLongOrNull()
                     if (savedHashTag != null) {

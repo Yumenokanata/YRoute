@@ -6,13 +6,10 @@ import android.content.res.Configuration
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import indi.yume.tools.yroute.test4.ActivityLifeEvent
-import indi.yume.tools.yroute.test4.ActivityLifecycleOwner
-import indi.yume.tools.yroute.test4.StackActivity
-import indi.yume.tools.yroute.test4.StackController
+import indi.yume.tools.yroute.test4.*
 import io.reactivex.subjects.Subject
 
-abstract class BaseFragmentActivity : FragmentActivity(), ActivityLifecycleOwner, StackActivity<Fragment> {
+abstract class BaseFragmentActivity<T : StackType<Fragment>> : FragmentActivity(), ActivityLifecycleOwner, StackHost<Fragment, T> {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
 
     override var controller: StackController = StackController.defaultController()
