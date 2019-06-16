@@ -13,11 +13,13 @@ import arrow.core.left
 import arrow.core.right
 import arrow.effects.IO
 import arrow.effects.typeclasses.Disposable
+import arrow.optics.Lens
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import java.util.concurrent.atomic.AtomicLong
 
 interface ActivityLifecycleOwner {
     val lifeSubject: Subject<ActivityLifeEvent>
@@ -51,38 +53,50 @@ interface FragmentLifecycleOwner {
 
 //<editor-fold defaultstate="collapsed" desc="Activity Life">
 sealed class ActivityLifeEvent {
-    data class OnCreate(val activity: Activity, val savedInstanceState: Bundle?): ActivityLifeEvent()
-    data class OnStart(val activity: Activity): ActivityLifeEvent()
-    data class OnResume(val activity: Activity): ActivityLifeEvent()
-    data class OnPause(val activity: Activity): ActivityLifeEvent()
-    data class OnStop(val activity: Activity): ActivityLifeEvent()
-    data class OnDestroy(val activity: Activity): ActivityLifeEvent()
-    data class OnSaveInstanceState(val activity: Activity, val outState: Bundle?): ActivityLifeEvent()
+    data class OnCreate(val activity: Activity, val savedInstanceState: Bundle?) : ActivityLifeEvent()
+    data class OnStart(val activity: Activity) : ActivityLifeEvent()
+    data class OnResume(val activity: Activity) : ActivityLifeEvent()
+    data class OnPause(val activity: Activity) : ActivityLifeEvent()
+    data class OnStop(val activity: Activity) : ActivityLifeEvent()
+    data class OnDestroy(val activity: Activity) : ActivityLifeEvent()
+    data class OnSaveInstanceState(val activity: Activity, val outState: Bundle?) : ActivityLifeEvent()
 
     // Global activity stream not have this events:
-    data class OnNewIntent(val activity: Activity, val intent: Intent?): ActivityLifeEvent()
-    data class OnConfigurationChanged(val activity: Activity, val newConfig: Configuration?): ActivityLifeEvent()
-    data class OnActivityResult(val activity: Activity, val requestCode: Int,
-                                val resultCode: Int, val data: Intent?): ActivityLifeEvent()
+    data class OnNewIntent(val activity: Activity, val intent: Intent?) : ActivityLifeEvent()
+
+    data class OnConfigurationChanged(val activity: Activity, val newConfig: Configuration?) : ActivityLifeEvent()
+    data class OnActivityResult(
+        val activity: Activity, val requestCode: Int,
+        val resultCode: Int, val data: Intent?
+    ) : ActivityLifeEvent()
 }
 //</editor-fold>
 
 //<editor-fold defaultstate="collapsed" desc="Fragment Life">
 sealed class FragmentLifeEvent {
-    data class OnCreate(val fragment: Fragment, val savedInstanceState: Bundle?): FragmentLifeEvent()
+    data class OnCreate(val fragment: Fragment, val savedInstanceState: Bundle?) : FragmentLifeEvent()
 
-    data class OnCreateView(val fragment: Fragment,
-                            val inflater: LayoutInflater,
-                            val container: ViewGroup?,
-                            val savedInstanceState: Bundle?): FragmentLifeEvent()
+    data class OnCreateView(
+        val fragment: Fragment,
+        val inflater: LayoutInflater,
+        val container: ViewGroup?,
+        val savedInstanceState: Bundle?
+    ) : FragmentLifeEvent()
 
-    data class OnViewCreated(val fragment: Fragment, val view: View?, val savedInstanceState: Bundle?): FragmentLifeEvent()
+    data class OnViewCreated(val fragment: Fragment, val view: View?, val savedInstanceState: Bundle?) :
+        FragmentLifeEvent()
+
     data class OnStart(val fragment: Fragment) : FragmentLifeEvent()
     data class OnResume(val fragment: Fragment) : FragmentLifeEvent()
-    data class OnDestroy(val fragment: Fragment): FragmentLifeEvent()
+    data class OnDestroy(val fragment: Fragment) : FragmentLifeEvent()
 }
 //</editor-fold>
 
+object CoreID {
+    private val uuid = AtomicLong(0)
+
+    fun get(): Long = uuid.incrementAndGet()
+}
 
 class TypeCheck<T>
 
@@ -92,9 +106,8 @@ private val typeFake = TypeCheck<Nothing>()
 fun <T> type(): TypeCheck<T> = typeFake as TypeCheck<T>
 
 
-
 fun <T> Single<T>.toIO(): IO<T> = IO.async { connection, cb ->
-    val disposable = subscribe({ cb(it.right()) },{ cb(it.left()) })
+    val disposable = subscribe({ cb(it.right()) }, { cb(it.left()) })
     connection.push(IO { disposable.dispose() })
 }
 
@@ -129,3 +142,15 @@ fun RouteCxt.checkComponentClass(intent: Intent, obj: Any): Boolean =
     intent.component?.run {
         packageName == app.packageName && className == obj.javaClass.name
     } ?: false
+
+fun <S1, S2 : Any, S3 : Any> Lens<S1, S2?>.composeNonNull(lens: Lens<S2, S3>): Lens<S1, S3?> = Lens(
+    get = { s1 ->
+        val s2 = this@composeNonNull.get(s1)
+        if (s2 == null) null else lens.get(s2)
+    },
+    set = { s1, s3 ->
+        val oldS2 = this@composeNonNull.get(s1)
+        if (s3 == null || oldS2 == null) this@composeNonNull.set(s1, null)
+        else this@composeNonNull.set(s1, lens.set(oldS2, s3))
+    }
+)

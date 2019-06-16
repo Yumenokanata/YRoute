@@ -8,7 +8,9 @@ import arrow.effects.IO
 import arrow.effects.extensions.io.fx.fx
 import arrow.effects.extensions.io.monadDefer.binding
 import arrow.effects.fix
+import arrow.effects.internal.Platform
 import arrow.effects.typeclasses.Async
+import arrow.effects.typeclasses.Proc
 import arrow.typeclasses.Monad
 import arrow.typeclasses.MonadThrow
 import java.io.BufferedReader
@@ -512,7 +514,43 @@ sealed class Process<F, O> {
 
             return lines()
         }
+
+        fun <F, T> create(AS: Async<F>, starter: (Emitter<T>) -> Unit): Process<F, T> {
+            val creator: Proc<EventType<T>> = { cb ->
+                println("Create start")
+                val emitter = object : Emitter<T> {
+                    override fun onNext(t: T) = cb(EventType.OnNext(t).right())
+
+                    override fun onComplete() = cb(EventType.OnComplete.right())
+                }
+                starter(emitter)
+            }
+
+            val step = AS.async(Platform.onceOnly(creator))
+
+            fun process(): Process<F, T> =
+                    Process.eval(step).flatMap { event ->
+                        when (event) {
+                            is EventType.OnComplete -> Halt<F, T>(End)
+                            is EventType.OnNext -> Emit(event.t, process())
+                        }
+                    }
+
+            return process()
+        }
     }
+}
+
+interface Emitter<T> {
+    fun onNext(t: T)
+
+    fun onComplete()
+}
+
+sealed class EventType<out T> {
+    data class OnNext<T>(val t: T) : EventType<T>()
+
+    object OnComplete: EventType<Nothing>()
 }
 
 

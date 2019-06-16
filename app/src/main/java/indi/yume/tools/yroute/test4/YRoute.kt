@@ -31,6 +31,7 @@ import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 
 
@@ -80,8 +81,13 @@ fun <S, T, R> YRoute<S, T, R>.toAction(param: T): EngineAction<S, T, R> =
 
 fun <S, T> routeId(): YRoute<S, T, T> = routeF { s, c, t -> IO.just(s toT Success(t)) }
 
-fun <S, T> routeJustIO(io: IO<Unit>): YRoute<S, T, Unit> =
+fun <S, T> routeGetState(): YRoute<S, T, S> = routeF { s, _, _ -> IO.just(s toT Success(s)) }
+
+fun <S, T> routeFromIO(io: IO<Unit>): YRoute<S, T, Unit> =
     routeF { state, _, _ -> io.map { state toT Success(Unit) } }
+
+fun <S, T, R> routeFromF(f: (T) -> R): YRoute<S, T, R> =
+    routeF { state, cxt, param -> IO.just(state toT Success(f(param))) }
 
 fun <S, T, R, R2> YRoute<S, T, R>.flatMapR(f: (R) -> YRoute<S, T, R2>): YRoute<S, T, R2> =
         routeF { state, cxt, param ->
@@ -158,12 +164,9 @@ fun <S, T, T1, R> YRoute<S, T, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S
         }
     }
 
-fun <S, T, R> transformRoute(f: (T) -> R): YRoute<S, T, R> =
-    routeF { state, cxt, param -> IO.just(state toT Success(f(param))) }
-
-fun <S1, S2, T, R> YRoute<S1, T, R>.mapStateF(lensF: () -> Lens<S2, S1>): YRoute<S2, T, R> =
+fun <S1, S2, T, R> YRoute<S1, T, R>.mapStateF(lensF: (T) -> Lens<S2, S1>): YRoute<S2, T, R> =
     routeF { state2, cxt, param ->
-        val lens = lensF()
+        val lens = lensF(param)
         val state1 = lens.get(state2)
         binding {
             val (newState1, result) = !this@mapStateF.runRoute(state1, cxt, param)
@@ -190,6 +193,11 @@ fun <S, T1, T2, R> YRoute<S, T1, R>.mapParam(type: TypeCheck<T2> = type(), f: (T
 
 fun <S, T, T1, R> YRoute<S, T, T1>.mapResult(f: (T1) -> R): YRoute<S, T, R> =
     transform { state, cxt, t1 -> IO.just(state toT Success(f(t1))) }
+
+fun <S, T, R : Any> YRoute<S, T, R?>.resultNonNull(tag: String = "resultNonNull()"): YRoute<S, T, R> =
+    transform { state, cxt, t1 ->
+        IO.just(state toT if (t1 != null) Success(t1) else Fail("Tag $tag | Result can not be Null."))
+    }
 
 fun <S, T, T1, R> YRoute<S, T, T1>.composeWith(f: (S, RouteCxt, T, T1) -> IO<Tuple2<S, Result<R>>>): YRoute<S, T, R> =
     routeF { state, cxt, param ->
@@ -230,6 +238,8 @@ fun <S, T, R> YRoute<S, T, R>.packageParam(): YRoute<S, T, Tuple2<T, R>> =
         this@packageParam.runRoute(state, cxt, param)
             .map { it.a toT it.b.map { r -> param toT r } }
     }
+
+fun <S, T, R1, R2> YRoute<S, T, Tuple2<R1, R2>>.switchResult(): YRoute<S, T, Tuple2<R2, R1>> = mapResult { it.b toT it.a }
 
 infix fun <S, T, T1, R> YRoute<S, T, T1>.compose(route2: YRoute<S, T1, R>): YRoute<S, T, R> =
     routeF { state, cxt, param ->
@@ -315,25 +325,56 @@ fun <S, T1, T2, T3, R1, R2, R3> YRoute<S, Coproduct3<T1, T2, T3>, Coproduct3<R1,
 //</editor-fold>
 
 //<editor-fold desc="CoreEngine">
-class CoreEngine<S>(val state: MVar<ForIO, S>,
-                    val routeCxt: RouteCxt) {
+
+interface CoreEngine<S> {
+    val routeCxt: RouteCxt
+
+    @CheckResult
+    fun runIO(io: IO<*>): IO<Unit>
+
+    @CheckResult
+    fun putStream(stream: Completable): IO<Unit>
+
+    @CheckResult
+    fun <T, R> runAsync(route: YRoute<S, T, R>, param: T, callback: (Result<R>) -> Unit): IO<Unit>
+
+    @CheckResult
+    fun <T, R> run(route: YRoute<S, T, R>, param: T): IO<Result<R>>
+}
+
+typealias CoreContainer = Map<String, *>
+
+typealias ContainerEngine = MainCoreEngine<CoreContainer>
+
+fun <S> ContainerEngine.createBranch(initState: S): SubCoreEngine<S>  {
+    val key = CoreID.get().toString()
+    @Suppress("UNCHECKED_CAST")
+    val lens: Lens<CoreContainer, S> = Lens(
+        get = { container -> (container[key] as? S) ?: initState },
+        set = { container, subState -> container + (key to subState) }
+    )
+    return subCore(lens)
+}
+
+class MainCoreEngine<S>(val state: MVar<ForIO, S>,
+                        override val routeCxt: RouteCxt): CoreEngine<S> {
     private val streamSubject: Subject<Completable> = PublishSubject.create()
 
     @CheckResult
-    fun runIO(io: IO<*>): IO<Unit> = IO { streamSubject.onNext(io.toSingle().ignoreElement()) }
+    override fun runIO(io: IO<*>): IO<Unit> = IO { streamSubject.onNext(io.toSingle().ignoreElement()) }
 
     @CheckResult
-    fun putStream(stream: Completable): IO<Unit> = IO { streamSubject.onNext(stream) }
+    override fun putStream(stream: Completable): IO<Unit> = IO { streamSubject.onNext(stream) }
 
     @CheckResult
-    fun <T, R> runAsync(route: YRoute<S, T, R>, param: T, callback: (Result<R>) -> Unit): IO<Unit> =
+    override fun <T, R> runAsync(route: YRoute<S, T, R>, param: T, callback: (Result<R>) -> Unit): IO<Unit> =
         putStream(runActual(route, param).toCompletable { either ->
             val result = either.fold({ Fail("Has error.", it) }, { it })
             callback(result)
         })
 
     @CheckResult
-    fun <T, R> run(route: YRoute<S, T, R>, param: T): IO<Result<R>> =
+    override fun <T, R> run(route: YRoute<S, T, R>, param: T): IO<Result<R>> =
         IO.async { connection, cb ->
             val io = runAsync(route, param) { cb(it.right()) }
             val disposable = io.unsafeRunAsyncCancellable(cb = { if (it is Either.Left) cb(it) })
@@ -361,6 +402,25 @@ class CoreEngine<S>(val state: MVar<ForIO, S>,
         result
     }
 
+    fun <S2> subCore(lens: Lens<S, S2>): SubCoreEngine<S2> {
+        val subDelegate = object : CoreEngine<S2> {
+            override val routeCxt: RouteCxt = this@MainCoreEngine.routeCxt
+
+            override fun runIO(io: IO<*>): IO<Unit> = this@MainCoreEngine.runIO(io)
+
+            override fun putStream(stream: Completable): IO<Unit> =
+                this@MainCoreEngine.putStream(stream)
+
+            override fun <T, R> runAsync(route: YRoute<S2, T, R>, param: T, callback: (Result<R>) -> Unit): IO<Unit> =
+                this@MainCoreEngine.runAsync(route.mapState(lens), param, callback)
+
+            override fun <T, R> run(route: YRoute<S2, T, R>, param: T): IO<Result<R>> =
+                this@MainCoreEngine.run(route.mapState(lens), param)
+        }
+
+        return SubCoreEngine(subDelegate)
+    }
+
     @CheckResult
     fun start(): Completable = streamSubject
         .concatMapCompletable { completable ->
@@ -375,8 +435,29 @@ class CoreEngine<S>(val state: MVar<ForIO, S>,
         fun <S> create(app: Application, initState: S): IO<CoreEngine<S>> = binding {
             val mvar = !MVar.uncancelableOf(initState, IO.async())
             val cxt = !RouteCxt.create(app)
-            CoreEngine(mvar, cxt)
+            MainCoreEngine(mvar, cxt)
         }
+    }
+}
+
+class SubCoreEngine<S>(delegate: CoreEngine<S>): CoreEngine<S> by delegate {
+    fun <S2> subCore(lens: Lens<S, S2>): SubCoreEngine<S2> {
+        val subDelegate = object : CoreEngine<S2> {
+            override val routeCxt: RouteCxt = this@SubCoreEngine.routeCxt
+
+            override fun runIO(io: IO<*>): IO<Unit> = this@SubCoreEngine.runIO(io)
+
+            override fun putStream(stream: Completable): IO<Unit> =
+                this@SubCoreEngine.putStream(stream)
+
+            override fun <T, R> runAsync(route: YRoute<S2, T, R>, param: T, callback: (Result<R>) -> Unit): IO<Unit> =
+                this@SubCoreEngine.runAsync(route.mapState(lens), param, callback)
+
+            override fun <T, R> run(route: YRoute<S2, T, R>, param: T): IO<Result<R>> =
+                this@SubCoreEngine.run(route.mapState(lens), param)
+        }
+
+        return SubCoreEngine(subDelegate)
     }
 }
 

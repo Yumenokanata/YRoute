@@ -16,20 +16,11 @@ import io.reactivex.Completable
 import io.reactivex.Single
 import kotlin.random.Random
 
-data class ActivitiesState(val list: List<ActivityItem>)
+data class ActivitiesState(val list: List<ActivityData>)
 
-interface ActivityItem {
-    val activity: Activity
-    val hashTag: Int
-
-    fun changeActivity(act: Activity): ActivityItem
-}
-
-data class ActivityData(override val activity: Activity,
-                        override val hashTag: Int,
-                        val extra: Any? = null) : ActivityItem {
-    override fun changeActivity(act: Activity): ActivityItem = copy(activity = act)
-}
+data class ActivityData(val activity: Activity,
+                        val hashTag: Long,
+                        val extra: Map<String, Any> = emptyMap())
 
 class RxActivityBuilder private constructor(clazz: Class<out Activity>) : ActivityBuilder<Activity>(clazz) {
     companion object {
@@ -74,7 +65,7 @@ object ActivitiesRoute {
                     .firstOrError().toIO()
                 Logger.d("startActivity", "get activity: $act")
 
-                vd.copy(list = vd.list + ActivityData(act, act.hashCode())) toT
+                vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
                         (if (cxt.checkComponentClass(param, act)) Result.success(act)
                         else Fail(
                             "startActivity | start activity is Success, but can not get target activity: " +
@@ -93,7 +84,7 @@ object ActivitiesRoute {
                     val (act) = cxt.bindNextActivity()
                         .firstOrError().toIO()
 
-                    vd.copy(list = vd.list + ActivityData(act, act.hashCode())) toT
+                    vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
                             (if (cxt.checkComponentClass(param, act)) Result.success(act)
                             else Fail(
                                 "startActivity | start activity is Success, but can not get target activity: " +
@@ -116,7 +107,7 @@ object ActivitiesRoute {
                     val (activity) = cxt.bindNextActivity()
                         .firstOrError().toIO()
 
-                    val newState = vd.copy(list = vd.list + ActivityData(activity, activity.hashCode()))
+                    val newState = vd.copy(list = vd.list + ActivityData(activity, CoreID.get()))
 
                     newState toT if (activity is ActivityLifecycleOwner && builder.clazz.isInstance(activity)) {
                         Success(activity.bindActivityLife().ofType(ActivityLifeEvent.OnActivityResult::class.java)
@@ -144,7 +135,7 @@ object ActivitiesRoute {
             }
         }
 
-    val finishTargetActivity: YRoute<ActivitiesState, ActivityItem, Unit> =
+    val finishTargetActivity: YRoute<ActivitiesState, ActivityData, Unit> =
         routeF { vd, cxt, activityItem ->
             binding {
                 val targetItem = vd.list.find { it.hashTag == activityItem.hashTag }.orNull()
@@ -160,7 +151,7 @@ object ActivitiesRoute {
             }
         }
 
-    val findTargetActivityItem: YRoute<ActivitiesState, Activity, ActivityItem?> =
+    val findTargetActivityItem: YRoute<ActivitiesState, Activity, ActivityData?> =
         routeF { vd, cxt, activity ->
             val item = vd.list.firstOrNull { it.activity === activity }
             IO.just(vd toT Success(item))
@@ -215,15 +206,15 @@ val globalActivityLogic: YRoute<ActivitiesState, ActivityLifeEvent, Unit> =
                 val newState = if (state.list.all { it.activity !== event.activity }) {
                     state.copy(list = state.list + ActivityData(
                         event.activity,
-                        event.activity.hashCode(),
-                        "this is globalActivityLogic auto generate ActivityData item."
+                        CoreID.get(),
+                        mapOf("message" to "this is globalActivityLogic auto generate ActivityData item.")
                     ))
                 } else {
-                    val savedHashTag = event.savedInstanceState?.getString(SAVE_STORE_HASH_TAG)?.toIntOrNull()
+                    val savedHashTag = event.savedInstanceState?.getString(SAVE_STORE_HASH_TAG)?.toLongOrNull()
                     if (savedHashTag != null) {
                         state.copy(list = state.list.map {
                             if (it.hashTag == savedHashTag)
-                                it.changeActivity(event.activity)
+                                it.copy(activity = event.activity)
                             else it
                         })
                     } else state
