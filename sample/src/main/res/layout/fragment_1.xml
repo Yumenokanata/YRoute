@@ -17,4 +17,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             tools:text="Other message"/>
+
+    <Button
+        android:id="@+id/jump_other_for_result_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:text="Jump To Other Fragment For Result"/>
 </LinearLayout>

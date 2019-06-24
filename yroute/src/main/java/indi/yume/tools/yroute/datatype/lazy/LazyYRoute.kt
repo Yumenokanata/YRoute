@@ -15,7 +15,6 @@ import arrow.generic.coproduct2.First
 import arrow.generic.coproduct2.Second
 import arrow.generic.coproduct2.fold
 import arrow.generic.coproduct3.Coproduct3
-import arrow.generic.coproduct3.Third
 import arrow.generic.coproduct3.fold
 import arrow.optics.Lens
 import indi.yume.tools.yroute.*
@@ -25,30 +24,30 @@ import indi.yume.tools.yroute.datatype.Success
 
 typealias LazyYRoute<S, P, R> = Reader<P, YRoute<S, R>>
 
-fun <S, P, R> lazyR(f: (P) -> YRoute<S, R>): LazyYRoute<S, P, R> = Reader { Id(f(it)) }
+fun <S, P, R> lazyR1(f: (P) -> YRoute<S, R>): LazyYRoute<S, P, R> = Reader { Id(f(it)) }
 
-fun <S, P1, P2, R> lazyR(f: (P1, P2) -> YRoute<S, R>): LazyYRoute<S, Tuple2<P1, P2>, R> = Reader { Id(f(it.a, it.b)) }
+fun <S, P1, P2, R> lazyR2(f: (P1, P2) -> YRoute<S, R>): LazyYRoute<S, Tuple2<P1, P2>, R> = Reader { Id(f(it.a, it.b)) }
 
-fun <S, P1, P2, P3, R> lazyR(f: (P1, P2, P3) -> YRoute<S, R>): LazyYRoute<S, Tuple3<P1, P2, P3>, R> =
+fun <S, P1, P2, P3, R> lazyR3(f: (P1, P2, P3) -> YRoute<S, R>): LazyYRoute<S, Tuple3<P1, P2, P3>, R> =
     Reader { Id(f(it.a, it.b, it.c)) }
 
-fun <S, P1, P2, P3, P4, R> lazyR(f: (P1, P2, P3, P4) -> YRoute<S, R>): LazyYRoute<S, Tuple4<P1, P2, P3, P4>, R> =
+fun <S, P1, P2, P3, P4, R> lazyR4(f: (P1, P2, P3, P4) -> YRoute<S, R>): LazyYRoute<S, Tuple4<P1, P2, P3, P4>, R> =
     Reader { Id(f(it.a, it.b, it.c, it.d)) }
 
 
-inline fun <S, T, R> route(crossinline f: (S) -> (Tuple2<RouteCxt, T>) -> IO<Tuple2<S, Result<R>>>): LazyYRoute<S, T, R> =
+inline fun <S, T, R> route(crossinline f: (S) -> (Tuple2<RouteCxt, T>) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
     Reader { t ->
         Id(StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
         { state -> ReaderT { f(state)(it toT t) } })
     }
 
-inline fun <S, T, R> routeF(crossinline f: (S, RouteCxt, T) -> IO<Tuple2<S, Result<R>>>): LazyYRoute<S, T, R> =
+inline fun <S, T, R> routeF(crossinline f: (S, RouteCxt, T) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
     Reader { t ->
         Id(StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
         { state -> ReaderT { cxt -> f(state, cxt, t) } })
     }
 
-fun <S, T, R> LazyYRoute<S, T, R>.runRoute(state: S, cxt: RouteCxt, t: T): IO<Tuple2<S, Result<R>>> =
+fun <S, T, R> LazyYRoute<S, T, R>.runRoute(state: S, cxt: RouteCxt, t: T): IO<Tuple2<S, YResult<R>>> =
     this.runId(t).runRoute(state, cxt)
 
 fun <S, T, R> LazyYRoute<S, T, R>.toAction(param: T): EngineAction<S, T, R> =
@@ -126,7 +125,7 @@ fun <S1, S2, R> LazyYRoute<S2, Lens<S1, S2>, R>.apForState(): LazyYRoute<S1, Len
         }
     }
 
-fun <S, T, T1, R> LazyYRoute<S, T, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S, Result<R>>>): LazyYRoute<S, T, R> =
+fun <S, T, T1, R> LazyYRoute<S, T, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
     routeF { state, cxt, param ->
         binding {
             val (tuple2) = this@transform.runRoute(state, cxt, param)
@@ -171,10 +170,10 @@ fun <S, T, T1, R> LazyYRoute<S, T, T1>.mapResult(f: (T1) -> R): LazyYRoute<S, T,
 
 fun <S, T, R : Any> LazyYRoute<S, T, R?>.resultNonNull(tag: String = "resultNonNull()"): LazyYRoute<S, T, R> =
     transform { state, cxt, t1 ->
-        IO.just(state toT if (t1 != null) Success(t1) else Fail("Tag $tag | Result can not be Null."))
+        IO.just(state toT if (t1 != null) Success(t1) else Fail("Tag $tag | YResult can not be Null."))
     }
 
-fun <S, T, T1, R> LazyYRoute<S, T, T1>.composeWith(f: (S, RouteCxt, T, T1) -> IO<Tuple2<S, Result<R>>>): LazyYRoute<S, T, R> =
+fun <S, T, T1, R> LazyYRoute<S, T, T1>.composeWith(f: (S, RouteCxt, T, T1) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
     routeF { state, cxt, param ->
         binding {
             val (tuple2) = this@composeWith.runRoute(state, cxt, param)
@@ -269,10 +268,10 @@ fun <S, T1, T2, R1, R2> stick(route1: LazyYRoute<S, T1, R1>, route2: LazyYRoute<
         )
     }
 
-fun <S, T1, T2, R1, R2> LazyYRoute<S, Coproduct2<T1, T2>, Coproduct2<R1, R2>>.runRoute21(state: S, cxt: RouteCxt, t1: T1): IO<Tuple2<S, Result<R1>>> =
+fun <S, T1, T2, R1, R2> LazyYRoute<S, Coproduct2<T1, T2>, Coproduct2<R1, R2>>.runRoute21(state: S, cxt: RouteCxt, t1: T1): IO<Tuple2<S, YResult<R1>>> =
     runRoute(state, cxt, First<T1, T2>(t1)).map { tuple -> tuple.map { result -> result.map { (it as First).a } } }
 
-fun <S, T1, T2, R1, R2> LazyYRoute<S, Coproduct2<T1, T2>, Coproduct2<R1, R2>>.runRoute22(state: S, cxt: RouteCxt, t2: T2): IO<Tuple2<S, Result<R2>>> =
+fun <S, T1, T2, R1, R2> LazyYRoute<S, Coproduct2<T1, T2>, Coproduct2<R1, R2>>.runRoute22(state: S, cxt: RouteCxt, t2: T2): IO<Tuple2<S, YResult<R2>>> =
     runRoute(state, cxt, Second<T1, T2>(t2)).map { tuple -> tuple.map { result -> result.map { (it as Second).b } } }
 
 
@@ -285,15 +284,15 @@ fun <S, T1, T2, T3, R1, R2, R3> stick(route1: LazyYRoute<S, T1, R1>, route2: Laz
         )
     }
 
-fun <S, T1, T2, T3, R1, R2, R3> LazyYRoute<S, Coproduct3<T1, T2, T3>, Coproduct3<R1, R2, R3>>.runRoute31(state: S, cxt: RouteCxt, t1: T1): IO<Tuple2<S, Result<R1>>> =
+fun <S, T1, T2, T3, R1, R2, R3> LazyYRoute<S, Coproduct3<T1, T2, T3>, Coproduct3<R1, R2, R3>>.runRoute31(state: S, cxt: RouteCxt, t1: T1): IO<Tuple2<S, YResult<R1>>> =
     runRoute(state, cxt, arrow.generic.coproduct3.First<T1, T2, T3>(t1))
         .map { tuple -> tuple.map { result -> result.map { (it as arrow.generic.coproduct3.First).a } } }
 
-fun <S, T1, T2, T3, R1, R2, R3> LazyYRoute<S, Coproduct3<T1, T2, T3>, Coproduct3<R1, R2, R3>>.runRoute32(state: S, cxt: RouteCxt, t2: T2): IO<Tuple2<S, Result<R2>>> =
+fun <S, T1, T2, T3, R1, R2, R3> LazyYRoute<S, Coproduct3<T1, T2, T3>, Coproduct3<R1, R2, R3>>.runRoute32(state: S, cxt: RouteCxt, t2: T2): IO<Tuple2<S, YResult<R2>>> =
     runRoute(state, cxt, arrow.generic.coproduct3.Second<T1, T2, T3>(t2))
         .map { tuple -> tuple.map { result -> result.map { (it as arrow.generic.coproduct3.Second).b } } }
 
-fun <S, T1, T2, T3, R1, R2, R3> LazyYRoute<S, Coproduct3<T1, T2, T3>, Coproduct3<R1, R2, R3>>.runRoute33(state: S, cxt: RouteCxt, t3: T3): IO<Tuple2<S, Result<R3>>> =
+fun <S, T1, T2, T3, R1, R2, R3> LazyYRoute<S, Coproduct3<T1, T2, T3>, Coproduct3<R1, R2, R3>>.runRoute33(state: S, cxt: RouteCxt, t3: T3): IO<Tuple2<S, YResult<R3>>> =
     runRoute(state, cxt, arrow.generic.coproduct3.Third<T1, T2, T3>(t3))
         .map { tuple -> tuple.map { result -> result.map { (it as arrow.generic.coproduct3.Third).c } } }
 
@@ -303,16 +302,16 @@ typealias EngineAction<S, T, R> = Tuple2<LazyYRoute<S, T, R>, T>
 
 
 
-fun <S, T, R> EngineAction<S, T, R>.startAsync(core: CoreEngine<S>, callback: (Result<R>) -> Unit): IO<Unit> =
+fun <S, T, R> EngineAction<S, T, R>.startAsync(core: CoreEngine<S>, callback: (YResult<R>) -> Unit): IO<Unit> =
     core.runAsync(a.runId(b), callback)
 
-fun <S, T, R> EngineAction<S, T, R>.start(core: CoreEngine<S>): IO<Result<R>> =
+fun <S, T, R> EngineAction<S, T, R>.start(core: CoreEngine<S>): IO<YResult<R>> =
     core.run(a.runId(b))
 
-fun <S, R> LazyYRoute<S, Unit, R>.startAsync(core: CoreEngine<S>, callback: (Result<R>) -> Unit): IO<Unit> =
+fun <S, R> LazyYRoute<S, Unit, R>.startAsync(core: CoreEngine<S>, callback: (YResult<R>) -> Unit): IO<Unit> =
     (this toT Unit).startAsync(core, callback)
 
-fun <S, R> LazyYRoute<S, Unit, R>.start(core: CoreEngine<S>): IO<Result<R>> = (this toT Unit).start(core)
+fun <S, R> LazyYRoute<S, Unit, R>.start(core: CoreEngine<S>): IO<YResult<R>> = (this toT Unit).start(core)
 
 
 

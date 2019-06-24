@@ -31,13 +31,28 @@ class MainActivity : BaseActivity() {
         }
 
         findViewById<Button>(R.id.fragment_stack_button).setOnClickListener {
-            StackActivityRoute
+            StackRoute
                 .startStackFragActivity(ActivityBuilder(FragmentStackActivity::class.java))
                 .start(core)
                 .unsafeRunAsync { result ->
                     Logger.d("FragmentStackActivity", result.toString())
                 }
 //            recreate()
+        }
+
+        findViewById<Button>(R.id.fragment_single_stack_button).setOnClickListener {
+//            StackRoute.run {
+//                routeStartFragAtNewSingleActivity(
+//                        ActivityBuilder(SingleStackActivity::class.java),
+//                        FragmentBuilder(FragmentOther::class.java).withParam(OtherParam("Msg from MainActivity."))
+//                )
+//            }.start(core).unsafeRunAsync { result ->
+//                Logger.d("SingleStackActivity", result.toString())
+//            }
+            YRouteNavi.run("route://test/other/fragment?param=this+is+Msg+from+YRouteNavi")
+                    .unsafeRunAsync { result ->
+                        Logger.d("SingleStackActivity", result.toString())
+                    }
         }
     }
 

@@ -4,22 +4,22 @@ import android.os.Bundle
 import android.widget.Button
 import androidx.fragment.app.Fragment
 import arrow.core.Either
-import arrow.core.toT
 import arrow.effects.IO
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.CoreEngine
 import indi.yume.tools.yroute.datatype.Fail
-import indi.yume.tools.yroute.datatype.lazy.lazyR
+import indi.yume.tools.yroute.datatype.Success
+import indi.yume.tools.yroute.datatype.lazy.lazyR2
 import indi.yume.tools.yroute.datatype.lazy.start
 import indi.yume.tools.yroute.datatype.lazy.withParams
 import indi.yume.tools.yroute.datatype.start
 
-class FragmentStackActivity : BaseFragmentActivity<StackType.Table<Fragment>>() {
+class FragmentStackActivity : BaseFragmentActivity<StackType.Table<BaseFragment>>() {
     val core: CoreEngine<ActivitiesState> by lazy { (application as App).core }
 
     override val fragmentId: Int = R.id.fragment_layout
 
-    override val initStack: StackType.Table<Fragment> =
+    override val initStack: StackType.Table<BaseFragment> =
         StackType.Table.create(
             defaultMap = mapOf(
                 "page1" to FragmentPage1::class.java,
@@ -33,7 +33,7 @@ class FragmentStackActivity : BaseFragmentActivity<StackType.Table<Fragment>>() 
         setContentView(R.layout.activity_stack)
 
         findViewById<Button>(R.id.page_1_btn).setOnClickListener {
-            core.run(StackActivityRoute.switchFragmentAtStackActivity<Fragment>(this, "page1"))
+            core.run(StackRoute.switchFragmentAtStackActivity<BaseFragment>(this, "page1"))
                 .runAsync {
                     Logger.d("FragmentStackActivity", it.toString())
                     if (it is Either.Right && it.b is Fail) (it.b as Fail).error?.printStackTrace()
@@ -43,14 +43,14 @@ class FragmentStackActivity : BaseFragmentActivity<StackType.Table<Fragment>>() 
         }
 
         findViewById<Button>(R.id.page_2_btn).setOnClickListener {
-            StackActivityRoute.switchFragmentAtStackActivity<Fragment>(this, "page2")
+            StackRoute.switchFragmentAtStackActivity<BaseFragment>(this, "page2")
                 .start(core)
                 .unsafeRunAsync { Logger.d("FragmentStackActivity", it.toString()) }
         }
 
         findViewById<Button>(R.id.page_3_btn).setOnClickListener {
-            lazyR<ActivitiesState, StackHost<Fragment, StackType.Table<Fragment>>, TableTag, Fragment?>(
-                StackActivityRoute::switchFragmentAtStackActivity)
+            lazyR2<ActivitiesState, StackHost<BaseFragment, StackType.Table<BaseFragment>>, TableTag, BaseFragment?>(
+                StackRoute::switchFragmentAtStackActivity)
                 .withParams(this, "page3")
                 .start(core)
                 .unsafeRunAsync { Logger.d("FragmentStackActivity", it.toString()) }
@@ -58,7 +58,13 @@ class FragmentStackActivity : BaseFragmentActivity<StackType.Table<Fragment>>() 
     }
 
     override fun onBackPressed() {
+        val result = StackRoute.run {
+            finishFragmentForTable<BaseFragment>(null) runAtA this@FragmentStackActivity
+        }.start(core).unsafeRunSync()
 
-        super.onBackPressed()
+        println("onBackPressed | result=$result")
+
+        if (result is Success && result.t.b == FinishResult.FinishParent)
+            super.onBackPressed()
     }
 }

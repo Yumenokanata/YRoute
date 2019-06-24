@@ -48,7 +48,7 @@ object ActivitiesRoute {
     //<editor-fold defaultstate="collapsed" desc="Routes">
     fun <T : Activity, VD> createActivityIntent(builder: ActivityBuilder<T>): YRoute<VD, Intent> =
         routeF { vd, cxt ->
-            IO { vd toT Result.success(builder.createIntent(cxt)) }
+            IO { vd toT YResult.success(builder.createIntent(cxt)) }
         }
 
     fun startActivity(intent: Intent): YRoute<ActivitiesState, Activity> =
@@ -66,7 +66,7 @@ object ActivitiesRoute {
                 Logger.d("startActivity", "get activity: $act")
 
                 vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
-                        (if (cxt.checkComponentClass(intent, act)) Result.success(act)
+                        (if (cxt.checkComponentClass(intent, act)) YResult.success(act)
                         else Fail(
                             "startActivity | start activity is Success, but can not get target activity: " +
                                     "target is ${intent.component?.className} but get is $act", null
@@ -86,7 +86,7 @@ object ActivitiesRoute {
                         .firstOrError().toIO()
 
                     vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
-                            (if (cxt.checkComponentClass(intent, act)) Result.success(act)
+                            (if (cxt.checkComponentClass(intent, act)) YResult.success(act)
                             else Fail(
                                 "startActivity | start activity is Success, but can not get target activity: " +
                                         "target is ${intent.component?.className} but get is $act", null

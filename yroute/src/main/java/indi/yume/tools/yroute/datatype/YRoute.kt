@@ -24,25 +24,25 @@ import io.reactivex.subjects.Subject
 import kotlin.random.Random
 
 
-//<editor-fold desc="Result<T>">
-sealed class Result<out T> {
+//<editor-fold desc="YResult<T>">
+sealed class YResult<out T> {
     companion object {
-        fun <T> success(t: T): Result<T> = Success(t)
+        fun <T> success(t: T): YResult<T> = Success(t)
 
-        fun <T> fail(message: String, error: Throwable? = null): Result<T> = Fail(message, error)
+        fun <T> fail(message: String, error: Throwable? = null): YResult<T> = Fail(message, error)
     }
 }
-data class Success<T>(val t: T) : Result<T>()
-data class Fail(val message: String, val error: Throwable? = null) : Result<Nothing>()
+data class Success<T>(val t: T) : YResult<T>()
+data class Fail(val message: String, val error: Throwable? = null) : YResult<Nothing>()
 
-fun <T, R> Result<T>.map(mapper: (T) -> R): Result<R> = flatMap { Success(mapper(it)) }
+fun <T, R> YResult<T>.map(mapper: (T) -> R): YResult<R> = flatMap { Success(mapper(it)) }
 
-inline fun <T, R> Result<T>.flatMap(f: (T) -> Result<R>): Result<R> = when(this) {
+inline fun <T, R> YResult<T>.flatMap(f: (T) -> YResult<R>): YResult<R> = when(this) {
     is Success -> f(t)
     is Fail -> this
 }
 
-fun <T> Result<T>.toEither(): Either<Fail, T> = when (this) {
+fun <T> YResult<T>.toEither(): Either<Fail, T> = when (this) {
     is Fail -> left<Fail>()
     is Success -> t.right()
 }
@@ -50,23 +50,25 @@ fun <T> Result<T>.toEither(): Either<Fail, T> = when (this) {
 
 
 //<editor-fold desc="YRoute">
-typealias YRoute<S, R> = StateT<ReaderTPartialOf<ForIO, RouteCxt>, S, Result<R>>
+typealias YRoute<S, R> = StateT<ReaderTPartialOf<ForIO, RouteCxt>, S, YResult<R>>
 
 
-inline fun <S, R> route(crossinline f: (S) -> (RouteCxt) -> IO<Tuple2<S, Result<R>>>): YRoute<S, R> =
+inline fun <S, R> route(crossinline f: (S) -> (RouteCxt) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
     StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
     { state -> ReaderT { f(state)(it) } }
 
-inline fun <S, R> routeF(crossinline f: (S, RouteCxt) -> IO<Tuple2<S, Result<R>>>): YRoute<S, R> =
+inline fun <S, R> routeF(crossinline f: (S, RouteCxt) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
     StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
     { state -> ReaderT { cxt -> f(state, cxt) } }
 
-fun <S, R> YRoute<S, R>.runRoute(state: S, cxt: RouteCxt): IO<Tuple2<S, Result<R>>> =
+fun <S, R> YRoute<S, R>.runRoute(state: S, cxt: RouteCxt): IO<Tuple2<S, YResult<R>>> =
     this.run(ReaderT.monad(IO.monad()), state).fix().run(cxt).fix()
 
 fun <S> routeId(): YRoute<S, Unit> = routeF { s, c -> IO.just(s toT Success(Unit)) }
 
 fun <S> routeGetState(): YRoute<S, S> = routeF { s, _ -> IO.just(s toT Success(s)) }
+
+fun <S, R> routeFail(msg: String): YRoute<S, R> = routeF { s, _ -> IO.just(s toT Fail(msg)) }
 
 fun <S, T> routeFromIO(io: IO<T>): YRoute<S, T> =
     routeF { state, _ -> io.map { state toT Success(it) } }
@@ -100,10 +102,10 @@ fun <S1, S2, R> YRoute<S1, Lens<S1, S2>>.composeState(route: YRoute<S2, R>): YRo
         }
     }
 
-fun <S : Any, R> YRoute<S, R>.stateNullable(): YRoute<S?, R> =
+fun <S : Any, R> YRoute<S, R>.stateNullable(tag: String = "stateNullable"): YRoute<S?, R> =
     routeF { state, cxt ->
         if (state == null)
-            IO.just(state toT Fail("State is null, can not get state."))
+            IO.just(state toT Fail("$tag | State is null, can not get state."))
         else
             this@stateNullable.runRoute(state, cxt)
     }
@@ -136,7 +138,23 @@ fun <S : Any, R> YRoute<S, R>.stateNullable(): YRoute<S?, R> =
 //        }
 //    }
 
-fun <S, T1, R> YRoute<S, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S, Result<R>>>): YRoute<S, R> =
+infix fun <S, R1, R2> YRoute<S, R1>.compose(route: YRoute<S, R2>): YRoute<S, Tuple2<R1, R2>> =
+        routeF { state, cxt ->
+            binding {
+                val (tuple2) = this@compose.runRoute(state, cxt)
+                val (innerState, resultT1) = tuple2
+
+                when (resultT1) {
+                    is Success -> {
+                        val (newState, resultT2) = !route.runRoute(innerState, cxt)
+                        newState toT resultT2.map { t2 -> resultT1.t toT t2 }
+                    }
+                    is Fail -> innerState toT resultT1
+                }
+            }
+        }
+
+fun <S, T1, R> YRoute<S, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
     routeF { state, cxt ->
         binding {
             val (tuple2) = this@transform.runRoute(state, cxt)
@@ -189,10 +207,10 @@ fun <S, T1, R> YRoute<S, T1>.mapResult(f: (T1) -> R): YRoute<S, R> =
 
 fun <S, R : Any> YRoute<S, R?>.resultNonNull(tag: String = "resultNonNull()"): YRoute<S, R> =
     transform { state, cxt, r ->
-        IO.just(state toT if (r != null) Success(r) else Fail("Tag $tag | Result can not be Null."))
+        IO.just(state toT if (r != null) Success(r) else Fail("Tag $tag | YResult can not be Null."))
     }
 
-fun <S, T1, R> YRoute<S, T1>.composeWith(f: (S, RouteCxt, T1) -> IO<Tuple2<S, Result<R>>>): YRoute<S, R> =
+fun <S, T1, R> YRoute<S, T1>.composeWith(f: (S, RouteCxt, T1) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
     routeF { state, cxt ->
         binding {
             val (tuple2) = this@composeWith.runRoute(state, cxt)
@@ -265,10 +283,10 @@ interface CoreEngine<S> {
     fun putStream(stream: Completable): IO<Unit>
 
     @CheckResult
-    fun <R> runAsync(route: YRoute<S, R>, callback: (Result<R>) -> Unit): IO<Unit>
+    fun <R> runAsync(route: YRoute<S, R>, callback: (YResult<R>) -> Unit): IO<Unit>
 
     @CheckResult
-    fun <R> run(route: YRoute<S, R>): IO<Result<R>>
+    fun <R> run(route: YRoute<S, R>): IO<YResult<R>>
 }
 
 typealias CoreContainer = Map<String, *>
@@ -297,21 +315,21 @@ class MainCoreEngine<S>(val state: MVar<ForIO, S>,
     override fun putStream(stream: Completable): IO<Unit> = IO { streamSubject.onNext(stream) }
 
     @CheckResult
-    override fun <R> runAsync(route: YRoute<S, R>, callback: (Result<R>) -> Unit): IO<Unit> =
+    override fun <R> runAsync(route: YRoute<S, R>, callback: (YResult<R>) -> Unit): IO<Unit> =
         putStream(runActual(route).toCompletable { either ->
             val result = either.fold({ Fail("Has error.", it) }, { it })
             callback(result)
         })
 
     @CheckResult
-    override fun <R> run(route: YRoute<S, R>): IO<Result<R>> =
+    override fun <R> run(route: YRoute<S, R>): IO<YResult<R>> =
         IO.async { connection, cb ->
             val io = runAsync(route) { cb(it.right()) }
             val disposable = io.unsafeRunAsyncCancellable(cb = { if (it is Either.Left) cb(it) })
             connection.push(IO { disposable() })
         }
 
-    private fun <R> runActual(route: YRoute<S, R>): IO<Result<R>> = binding {
+    private fun <R> runActual(route: YRoute<S, R>): IO<YResult<R>> = binding {
         val code = Random.nextInt()
         Logger.d("CoreEngine", "================>>>>>>>>>>>> $code")
         Logger.d("CoreEngine", "start run: route=$route")
@@ -341,10 +359,10 @@ class MainCoreEngine<S>(val state: MVar<ForIO, S>,
             override fun putStream(stream: Completable): IO<Unit> =
                 this@MainCoreEngine.putStream(stream)
 
-            override fun <R> runAsync(route: YRoute<S2, R>, callback: (Result<R>) -> Unit): IO<Unit> =
+            override fun <R> runAsync(route: YRoute<S2, R>, callback: (YResult<R>) -> Unit): IO<Unit> =
                 this@MainCoreEngine.runAsync(route.mapState(lens), callback)
 
-            override fun <R> run(route: YRoute<S2, R>): IO<Result<R>> =
+            override fun <R> run(route: YRoute<S2, R>): IO<YResult<R>> =
                 this@MainCoreEngine.run(route.mapState(lens))
         }
 
@@ -380,10 +398,10 @@ class SubCoreEngine<S>(delegate: CoreEngine<S>): CoreEngine<S> by delegate {
             override fun putStream(stream: Completable): IO<Unit> =
                 this@SubCoreEngine.putStream(stream)
 
-            override fun <R> runAsync(route: YRoute<S2, R>, callback: (Result<R>) -> Unit): IO<Unit> =
+            override fun <R> runAsync(route: YRoute<S2, R>, callback: (YResult<R>) -> Unit): IO<Unit> =
                 this@SubCoreEngine.runAsync(route.mapState(lens), callback)
 
-            override fun <R> run(route: YRoute<S2, R>): IO<Result<R>> =
+            override fun <R> run(route: YRoute<S2, R>): IO<YResult<R>> =
                 this@SubCoreEngine.run(route.mapState(lens))
         }
 
@@ -392,10 +410,10 @@ class SubCoreEngine<S>(delegate: CoreEngine<S>): CoreEngine<S> by delegate {
 }
 
 
-fun <S, R> YRoute<S, R>.startAsync(core: CoreEngine<S>, callback: (Result<R>) -> Unit): IO<Unit> =
+fun <S, R> YRoute<S, R>.startAsync(core: CoreEngine<S>, callback: (YResult<R>) -> Unit): IO<Unit> =
     core.runAsync(this, callback)
 
-fun <S, R> YRoute<S, R>.start(core: CoreEngine<S>): IO<Result<R>> = core.run(this)
+fun <S, R> YRoute<S, R>.start(core: CoreEngine<S>): IO<YResult<R>> = core.run(this)
 
 //</editor-fold>
 

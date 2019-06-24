@@ -9,7 +9,7 @@ import androidx.fragment.app.FragmentActivity
 import indi.yume.tools.yroute.*
 import io.reactivex.subjects.Subject
 
-abstract class BaseFragmentActivity<T : StackType<Fragment>> : FragmentActivity(), ActivityLifecycleOwner, StackHost<Fragment, T> {
+abstract class BaseFragmentActivity<T : StackType<BaseFragment>> : FragmentActivity(), ActivityLifecycleOwner, StackHost<BaseFragment, T> {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
 
     override var controller: StackController = StackController.defaultController()

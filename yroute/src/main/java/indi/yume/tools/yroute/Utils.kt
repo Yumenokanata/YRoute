@@ -12,15 +12,22 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import arrow.effects.IO
+import arrow.effects.OnCancel
 import arrow.effects.typeclasses.Disposable
 import arrow.optics.Lens
+import indi.yume.tools.yroute.datatype.YResult
+import indi.yume.tools.yroute.datatype.Fail
 import indi.yume.tools.yroute.datatype.RouteCxt
+import indi.yume.tools.yroute.datatype.Success
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import java.lang.Exception
 import java.util.concurrent.atomic.AtomicLong
+
+const val NO_ANIMATION_RES = 0
 
 interface ActivityLifecycleOwner {
     val lifeSubject: Subject<ActivityLifeEvent>
@@ -96,6 +103,37 @@ sealed class FragmentLifeEvent {
         : FragmentLifeEvent()
 }
 //</editor-fold>
+
+class YRouteException(val fail: Fail) : Exception(fail.message, fail.error ?: Throwable("YRoute inner error."))
+
+fun <R> IO<YResult<R>>.flattenForYRoute(): IO<R> =
+        this.flatMap {
+            when (it) {
+                is Success -> IO.just(it.t)
+                is Fail -> IO.raiseError(YRouteException(it))
+            }
+        }
+
+fun <T> IO<T>.unsafeAsyncRunDefault(
+        onSuccess: (T) -> Unit = {},
+        onError: (Throwable) -> Unit = { it.printStackTrace() }): Unit =
+        unsafeRunAsync {
+            when (it) {
+                is Either.Left -> onError(it.a)
+                is Either.Right -> onSuccess(it.b)
+            }
+        }
+
+fun <T> IO<T>.unsafeAsyncRunDefaultCancellable(
+        onCancel: OnCancel = OnCancel.Silent,
+        onSuccess: (T) -> Unit = {},
+        onError: (Throwable) -> Unit = { it.printStackTrace() }): Disposable =
+        unsafeRunAsyncCancellable(onCancel) {
+            when (it) {
+                is Either.Left -> onError(it.a)
+                is Either.Right -> onSuccess(it.b)
+            }
+        }
 
 object CoreID {
     private val uuid = AtomicLong(0)
