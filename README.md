@@ -1,7 +1,10 @@
 # YRoute
+
+[![](https://jitpack.io/v/Yumenokanata/YRoute.svg)](https://jitpack.io/#Yumenokanata/YRoute)
+
 Functional Route Util for Android
 
-这是一个用于Android的路由库，使用了函数式库arrow的部分数据结构作为核心，本身基于函数范式的面向组合子思想构建，目标是构建一个灵活、结构简单、静态类型的路由库
+这是一个用于Android的路由库，使用了函数式库[Arrow](https://github.com/arrow-kt/arrow)的部分数据结构作为核心，本身基于函数范式的面向组合子思想构建，目标是构建一个灵活、结构简单、静态类型的路由库
 
 本库目前还处于开发阶段，目前作为架构测试实现了一些基础功能
 
@@ -54,7 +57,7 @@ allprojects {
 Step2: 在工程中添加依赖：
 ```groovy
 dependencies {
-    // 暂未发布
+    implementation 'com.github.Yumenokanata:YRoute:-SNAPSHOT'
 }
 ```
 
@@ -371,6 +374,16 @@ io.toSingle()
 
 会得到一个`YResult`类型的值，它有`Success`和`Fail`两种可选类型，代表结果是成功还是失败
 
+---
+
+## 相关文章
+
+[YRoute开发随笔](https://segmentfault.com/a/1190000019575543)
+
+## Author
+
+Yumenokanata:
+[Segmentfault](https://segmentfault.com/u/yumenokanata)
 
 ### License
 
