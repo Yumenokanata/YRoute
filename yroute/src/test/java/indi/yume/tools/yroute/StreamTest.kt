@@ -5,6 +5,7 @@ import arrow.core.None
 import arrow.core.Some
 import arrow.effects.ForIO
 import arrow.effects.IO
+import arrow.effects.extensions.io.async.async
 import org.junit.Test
 import java.io.File
 import java.io.FileReader
@@ -158,11 +159,22 @@ class StreamTest {
 //            .to(fileW("celsius.txt"))
 //            .drain()
 
-        val out = Process.fromList(IO.monad(), (0..999).map { "item$it" })
-            .pipe(Process.intersperse("\n"))
-            .to(fileW("celsius.txt"))
-            .drain<Unit>()
+//        val out = Process.fromList(IO.monad(), (0..999).map { "item$it" })
+//            .pipe(Process.intersperse("\n"))
+//            .to(fileW("celsius.txt"))
+//            .drain<Unit>()
+//
+//        println(Process.runLog(out).attempt().unsafeRunSync().toString())
 
-        println(Process.runLog(out).attempt().unsafeRunSync().toString())
+        val createP = Process.create(IO.monad(), sequence {
+            for (i in 0..5)
+                yield(EventType.OnNext(i))
+
+            yield(EventType.OnComplete)
+
+            yield(EventType.OnNext(999))
+        })
+
+        println(Process.runLog(createP).attempt().unsafeRunSync().toString())
     }
 }

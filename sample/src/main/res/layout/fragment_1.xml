@@ -24,4 +24,15 @@
         android:layout_height="wrap_content"
         android:textAllCaps="false"
         android:text="Jump To Other Fragment For Result"/>
+
+    <EditText
+        android:id="@+id/page_1_search_edit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:transitionName="trans1"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Bottom Message"/>
 </LinearLayout>

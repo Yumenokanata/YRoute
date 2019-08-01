@@ -509,28 +509,22 @@ sealed class Process<F, O> {
             return lines()
         }
 
-        fun <F, T> create(AS: Async<F>, starter: (Emitter<T>) -> Unit): Process<F, T> {
-            val creator: Proc<EventType<T>> = { cb ->
-                println("Create start")
-                val emitter = object : Emitter<T> {
-                    override fun onNext(t: T) = cb(EventType.OnNext(t).right())
+        fun <F, T> create(MD: Monad<F>, seq: Sequence<EventType<T>>): Process<F, T> {
+            val iter by lazy { seq.iterator() } // a stateful iterator
+            fun step() = if (iter.hasNext()) Some(iter.next()) else None
 
-                    override fun onComplete() = cb(EventType.OnComplete.right())
-                }
-                starter(emitter)
-            }
-
-            val step = AS.async(Platform.onceOnly(creator))
-
-            fun process(): Process<F, T> =
-                    Process.eval(step).flatMap { event ->
-                        when (event) {
+            fun lines(): Process<F, T> =
+                Process.eval(MD.just(step())).flatMap {
+                    when (it) {
+                        is None -> Halt<F, T>(End)
+                        is Some -> when (val event = it.t) {
+                            is EventType.OnNext -> Emit(event.t, lines())
                             is EventType.OnComplete -> Halt<F, T>(End)
-                            is EventType.OnNext -> Emit(event.t, process())
                         }
                     }
+                }
 
-            return process()
+            return lines()
         }
     }
 }

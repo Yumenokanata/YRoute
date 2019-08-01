@@ -1,6 +1,10 @@
 package indi.yume.tools.yroute.sample
 
 import android.os.Bundle
+import android.transition.ChangeBounds
+import android.transition.ChangeTransform
+import android.transition.Fade
+import android.transition.TransitionSet
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,10 +15,13 @@ import androidx.annotation.CallSuper
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import arrow.core.Either
+import arrow.core.toT
+import arrow.effects.IO
+import arrow.effects.extensions.io.fx.fx
+import arrow.effects.extensions.io.monad.binding
+import arrow.effects.fix
 import indi.yume.tools.yroute.*
-import indi.yume.tools.yroute.datatype.CoreEngine
-import indi.yume.tools.yroute.datatype.Success
-import indi.yume.tools.yroute.datatype.start
+import indi.yume.tools.yroute.datatype.*
 import io.reactivex.subjects.Subject
 
 abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner {
@@ -78,15 +85,24 @@ class FragmentPage1 : BaseFragment() {
         super.onViewCreated(view, savedInstanceState)
         view.findViewById<Button>(R.id.jump_other_for_result_btn).setOnClickListener {
             StackRoute.run {
-                routeStartFragmentForRx(FragmentBuilder(FragmentOther::class.java)
+                val builder: FragmentBuilder<BaseFragment> = FragmentBuilder(FragmentOther::class.java)
                         .withParam(OtherParam("This is param from FragmentPage1."))
-                ) runAtF this@FragmentPage1
+                startWithShared(builder, view.findViewById(R.id.page_1_search_edit)) runAtF
+                        this@FragmentPage1
+
+//            StackRoute.run {
+//                routeStartFragmentForRx(FragmentBuilder(FragmentOther::class.java)
+//                        .withParam(OtherParam("This is param from FragmentPage1."))
+//                ) runAtF this@FragmentPage1
+//            }
             }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
-                val s = it.doOnSuccess {
-                    Toast.makeText(activity,
-                            "YResult from Other fragment: \nresultCode=${it.a}, data=${it.b?.getString("msg")}",
-                            Toast.LENGTH_LONG).show()
-                }.subscribe()
+//                val s = it.doOnSuccess {
+//                    Toast.makeText(activity,
+//                            "YResult from Other fragment: \nresultCode=${it.a}, data=${it.b?.getString("msg")}",
+//                            Toast.LENGTH_LONG).show()
+//                }.subscribe()
+
+                println("Shared FragmentPage1: $it")
             })
         }
     }

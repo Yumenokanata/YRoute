@@ -1,9 +1,16 @@
 package indi.yume.tools.yroute
 
+import android.annotation.TargetApi
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.transition.ChangeBounds
+import android.transition.ChangeTransform
+import android.transition.Fade
+import android.transition.TransitionSet
+import android.view.View
 import androidx.annotation.IdRes
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
@@ -25,6 +32,7 @@ import io.reactivex.subjects.Subject
 import java.lang.ClassCastException
 import kotlin.random.Random
 import androidx.annotation.AnimRes
+import androidx.core.view.ViewCompat
 
 
 //data class FragActivityData<out VD>(override val activity: FragmentActivity,
@@ -329,7 +337,7 @@ object StackRoute {
                     val result = list.withIndex().firstOrNull { checker(it.value) }
                     if (result != null)
                         return Tuple3(k,
-                            if (result.index != 0) list[result.index - 1] else null,
+                            if (result.index != 0) list.getOrNull(result.index - 1) else null,
                             result.value)
                 }
                 return null
@@ -344,7 +352,7 @@ object StackRoute {
                     val target = targetList?.lastOrNull()
                     if (targetList != null && target != null)
                         TableTarget<F>(tag,
-                            targetList.getOrNull(targetList.size - 1),
+                            if (targetList.size > 1) targetList.getOrNull(targetList.size - 2) else null,
                             target
                         )
                     else null
@@ -494,11 +502,11 @@ object StackRoute {
             .stateNullable()
             .mapState(stackActivityLens(host).composeNonNull(stackStateForActivityLens<F, StackType.Table<F>>()))
 
-    internal fun <S, F> createFragment(builder: FragmentBuilder<F>): YRoute<S, F> where F : Fragment =
+    fun <S, F : Fragment> createFragment(builder: FragmentBuilder<F>): YRoute<S, F> =
         routeF { vd, cxt ->
             val intent = builder.createIntent(cxt)
 
-            val clazzNameE = intent.component?.className?.right()
+            val clazzNameE: Either<YResult<F>, String> = intent.component?.className?.right()
                 ?: YResult.fail<F>("Can not get fragment class name, from intent: $intent").left()
 
             val fragmentE = clazzNameE.flatMap { clazzName ->
@@ -525,7 +533,7 @@ object StackRoute {
             }
         }
 
-    internal data class StackInnerState<out S>(
+    data class StackInnerState<out S>(
         val state: S,
         val fragmentId: Int,
         val fm: FragmentManager,
@@ -536,7 +544,7 @@ object StackRoute {
         )
     }
 
-    internal fun <F, T : StackType<F>, R> YRoute<StackInnerState<StackFragState<F, T>>, R>.stackTran(): YRoute<StackFragState<F, T>, R> =
+    fun <F, T : StackType<F>, R> YRoute<StackInnerState<StackFragState<F, T>>, R>.stackTran(): YRoute<StackFragState<F, T>, R> =
         routeF { vd, cxt ->
             binding {
                 val fm = vd.fm
@@ -551,7 +559,7 @@ object StackRoute {
             }
         }
 
-    internal fun <S, Sub, R> YRoute<StackInnerState<Sub>, R>.mapInner(
+    fun <S, Sub, R> YRoute<StackInnerState<Sub>, R>.mapInner(
         type: TypeCheck<S> = type(), lens: Lens<S, Sub>): YRoute<StackInnerState<S>, R> =
         routeF { vd, cxt ->
             binding {
@@ -563,7 +571,7 @@ object StackRoute {
             }
         }
 
-    internal fun <F> putFragAtSingle(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Single<F>>, F>
+    fun <F> putFragAtSingle(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Single<F>>, F>
             where F : Fragment, F : StackFragment =
         routeF { vd, cxt ->
             val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag)
@@ -584,7 +592,7 @@ object StackRoute {
             }
         }
 
-    internal fun <F> putFragAtTable(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Table<F>>, F>
+    fun <F> putFragAtTable(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Table<F>>, F>
             where F : Fragment, F : StackFragment =
         routeF { vd, cxt ->
             val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag)
@@ -605,8 +613,12 @@ object StackRoute {
                 val innerStackState = innerState.state
                 val targetStack = innerStackState.table[targetTag] ?: emptyList()
                 val newTable = innerState.state.table - targetTag + (targetTag to targetStack + newItem)
+                val backF = innerState.state.current?.second?.t
 
-                !IO { vd.ft.add(vd.fragmentId, fragment) }
+                !IO {
+                    vd.ft.add(vd.fragmentId, fragment)
+                    if (backF != null && backF.isVisible) vd.ft.hide(backF)
+                }
 
                 innerState.copy(
                     state = innerState.state.copy(
@@ -617,7 +629,7 @@ object StackRoute {
             }
         }
 
-    internal fun <F> switchStackAtTable(targetTag: TableTag, silentSwitch: Boolean = false): YRoute<StackInnerState<StackType.Table<F>>, F?> where F : Fragment =
+    fun <F> switchStackAtTable(targetTag: TableTag, silentSwitch: Boolean = false): YRoute<StackInnerState<StackType.Table<F>>, F?> where F : Fragment =
         routeF { vd, cxt ->
             val stackState = vd.state
             val currentTag = stackState.current?.first
@@ -631,7 +643,7 @@ object StackRoute {
                     !IO {
                         for (i in currentStack.size - 1 downTo 0) {
                             val f = currentStack[i]
-                            if (f.t.isVisible) vd.ft.hide(f.t)
+                            if (f.t.isVisible) vd.ft.remove(f.t)
                         }
                     }
                 }
@@ -670,7 +682,7 @@ object StackRoute {
             }
         }
 
-    internal fun <F : Fragment, R> foldStack(
+    fun <F : Fragment, R> foldStack(
         single: YRoute<StackInnerState<StackType.Single<F>>, R>,
         table: YRoute<StackInnerState<StackType.Table<F>>, R>
     ): YRoute<StackInnerState<StackType<F>>, R> = routeF { state, cxt ->
@@ -682,7 +694,7 @@ object StackRoute {
         }
     }
 
-    internal fun <F : Fragment, R> foldForFragState(
+    fun <F : Fragment, R> foldForFragState(
             single: YRoute<StackFragState<F, StackType.Single<F>>, R>,
             table: YRoute<StackFragState<F, StackType.Table<F>>, R>
     ): YRoute<StackFragState<F, StackType<F>>, R> = routeF { state, cxt ->
@@ -717,7 +729,7 @@ object StackRoute {
     fun <F> finishFragmentForTable(target: StackFragment?): YRoute<StackFragState<F, StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> where F : Fragment =
         finishFragmentAtTable<F>(target).mapInner(lens = stackTypeLens<F, StackType.Table<F>>()).stackTran()
 
-    internal fun <F : Fragment> finishFragmentAtSingle(targetF: StackFragment?): YRoute<StackInnerState<StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>> =
+    fun <F : Fragment> finishFragmentAtSingle(targetF: StackFragment?): YRoute<StackInnerState<StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>> =
         routeF { state, cxt ->
             val stack = state.state
 
@@ -737,8 +749,8 @@ object StackRoute {
                     state.copy(state = stack.copy(list = stack.list.filter { it.hashTag != targetItem.hashTag }))
 
                 !IO {
-                    state.ft.show(targetItem.t)
-                    if (backItem != null) state.ft.hide(backItem.t)
+                    state.ft.remove(targetItem.t)
+                    if (backItem != null) state.ft.show(backItem.t)
                 }
 
                 if (targetItem.t is StackFragment && backItem != null && backItem.t is StackFragment)
@@ -753,11 +765,12 @@ object StackRoute {
             }
         }
 
-    internal fun <F : Fragment> finishFragmentAtTable(target: StackFragment?): YRoute<StackInnerState<StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> =
+    fun <F : Fragment> finishFragmentAtTable(target: StackFragment?): YRoute<StackInnerState<StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> =
         routeF { state, cxt ->
             val stack = state.state
 
             val result = tableStackFGetter<F>(target).run(stack).fix()
+            println("finishFragmentAtSingle>>> result: ${result}")
 
             val targetItem = when (result) {
                 is Either.Left -> return@routeF when {
@@ -775,8 +788,8 @@ object StackRoute {
                     current = if (stack.current?.second?.hashTag == targetF.hashTag) backF?.let { targetTag to it } else stack.current))
 
                 !IO {
-                    state.ft.show(targetF.t)
-                    if (backF != null) state.ft.hide(backF.t)
+                    state.ft.remove(targetF.t)
+                    if (backF != null) state.ft.show(backF.t)
                 }
 
                 if (targetF.t is StackFragment && backF != null && backF.t is StackFragment)
@@ -916,4 +929,42 @@ object StackRoute {
                                         .composeNonNull(stackStateForActivityLens<F, StackType.Table<F>>()))
                                 .mapResult { f -> activity toT f }
                     }
+
+    fun <F> startWithShared(builder: FragmentBuilder<F>, view: View): YRoute<StackFragState<F, StackType<F>>, F>
+            where F : Fragment, F : StackFragment =
+            createFragment<StackFragState<F, StackType<F>>, F>(builder).flatMapR { f ->
+                sharedItem<F>(f, view).flatMapR {
+                    foldStack<F, F>(putFragAtSingle<F>(builder, f), putFragAtTable<F>(builder, f))
+                }
+                        .mapInner(lens = stackTypeLens<F, StackType<F>>())
+                        .stackTran()
+            }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    fun <F : Fragment> sharedItem(f: Fragment, view: View): YRoute<StackRoute.StackInnerState<StackType<F>>, Unit> =
+            routeF { s, routeCxt ->
+                binding {
+                    !IO {
+                        f.sharedElementEnterTransition = TransitionSet().apply {
+                            setOrdering(TransitionSet.ORDERING_TOGETHER)
+                            addTransition(ChangeBounds())
+                            addTransition(ChangeTransform())
+                        }
+//                        f.enterTransition = Fade()
+//                        f.exitTransition = Fade()
+                        f.sharedElementReturnTransition = TransitionSet().apply {
+                            setOrdering(TransitionSet.ORDERING_TOGETHER)
+                            addTransition(ChangeBounds())
+                            addTransition(ChangeTransform())
+                        }
+                    }
+
+                    !IO {
+                        s.ft.setReorderingAllowed(true)
+                        s.ft.addSharedElement(view, ViewCompat.getTransitionName(view)!!)
+                    }
+
+                    s toT Success(Unit)
+                }
+            }
 }
