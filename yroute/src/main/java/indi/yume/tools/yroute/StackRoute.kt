@@ -643,7 +643,7 @@ object StackRoute {
                     !IO {
                         for (i in currentStack.size - 1 downTo 0) {
                             val f = currentStack[i]
-                            if (f.t.isVisible) vd.ft.remove(f.t)
+                            if (f.t.isVisible) vd.ft.hide(f.t)
                         }
                     }
                 }
