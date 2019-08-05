@@ -3,11 +3,17 @@ package indi.yume.tools.yroute
 import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
+import androidx.annotation.AnimRes
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.FragmentTransaction
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
@@ -91,16 +97,36 @@ sealed class FragmentLifeEvent {
         val savedInstanceState: Bundle?
     ) : FragmentLifeEvent()
 
-    data class OnViewCreated(val fragment: Fragment, val view: View?, val savedInstanceState: Bundle?) :
+    data class OnViewCreated(val fragment: Fragment, val view: View, val savedInstanceState: Bundle?) :
         FragmentLifeEvent()
 
     data class OnStart(val fragment: Fragment) : FragmentLifeEvent()
     data class OnResume(val fragment: Fragment) : FragmentLifeEvent()
     data class OnDestroy(val fragment: Fragment) : FragmentLifeEvent()
+    data class OnLowMemory(val fragment: Fragment): FragmentLifeEvent()
 
     // Just for StackFragment, see [StackFragment#onFragmentResult()]
     data class OnFragmentResult(val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
         : FragmentLifeEvent()
+    // Just for StackFragment, see [StackFragment#onShow()]
+    data class OnShow(val fragment: Fragment, val showMode: OnShowMode): FragmentLifeEvent()
+    // Just for StackFragment, see [StackFragment#onHide()]
+    data class OnHide(val fragment: Fragment, val hideMode: OnHideMode): FragmentLifeEvent()
+}
+
+sealed class OnHideMode {
+    object OnPause : OnHideMode()
+    object OnStartNew : OnHideMode()
+    object OnSwitch : OnHideMode()
+    object OnStartNewAfterAnim : OnHideMode()
+}
+
+sealed class OnShowMode {
+    object OnResume : OnShowMode()
+    object OnBack : OnShowMode()
+    object OnSwitch : OnShowMode()
+    object OnCreate : OnShowMode()
+    object OnCreateAfterAnim : OnShowMode()
 }
 //</editor-fold>
 
@@ -154,6 +180,8 @@ fun <T> Single<T>.toIO(): IO<T> = IO.async { connection, cb ->
     connection.push(IO { disposable.dispose() })
 }
 
+fun Completable.toIO(): IO<Unit> = toSingleDefault(Unit).toIO()
+
 fun <T> IO<T>.toSingle(): Single<T> {
     var ioDisposable: Disposable? = null
 
@@ -197,3 +225,27 @@ fun <S1, S2 : Any, S3 : Any> Lens<S1, S2?>.composeNonNull(lens: Lens<S2, S3>): L
         else this@composeNonNull.set(s1, lens.set(oldS2, s3))
     }
 )
+
+fun FragmentManager.trans(f: FragmentTransaction.() -> Unit): IO<Unit> = IO {
+    val ft = beginTransaction()
+    ft.f()
+    ft.routeExecFT()
+}
+
+fun startAnim(@AnimRes animRes: Int, target: View?): Completable = if (target == null) Completable.complete() else Completable.create { emitter ->
+    if (target.background == null)
+        target.setBackgroundColor(Color.WHITE)
+
+    val animation = AnimationUtils.loadAnimation(target.context, animRes)
+    animation.setAnimationListener(object : Animation.AnimationListener {
+        override fun onAnimationRepeat(animation: Animation?) {}
+
+        override fun onAnimationEnd(animation: Animation?) {
+            emitter.onComplete()
+        }
+
+        override fun onAnimationStart(animation: Animation?) {}
+
+    })
+    target.startAnimation(animation)
+}

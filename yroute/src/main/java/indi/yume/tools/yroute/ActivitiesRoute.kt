@@ -10,6 +10,7 @@ import arrow.core.andThen
 import arrow.core.toT
 import arrow.effects.IO
 import arrow.effects.extensions.io.monadDefer.binding
+import indi.yume.tools.yroute.RouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
 import io.reactivex.Completable
 import io.reactivex.Single
@@ -19,7 +20,8 @@ data class ActivitiesState(val list: List<ActivityData>)
 
 data class ActivityData(val activity: Activity,
                         val hashTag: Long,
-                        val extra: Map<String, Any> = emptyMap())
+                        val extra: Map<String, Any> = emptyMap(),
+                        val animData: AnimData?)
 
 class RxActivityBuilder private constructor(clazz: Class<out Activity>) : ActivityBuilder<Activity>(clazz) {
     companion object {
@@ -33,6 +35,8 @@ open class ActivityBuilder<out A>(val clazz: Class<out A>) {
         Intent(app, clazz)
     }
 
+    var animData: AnimData? = globalDefaultAnimData
+
     fun withBundle(data: Bundle): ActivityBuilder<A> {
         createIntent = createIntent andThen { it.putExtras(data) }
         return this
@@ -40,6 +44,17 @@ open class ActivityBuilder<out A>(val clazz: Class<out A>) {
 
     fun withIntent(f: (Intent) -> Unit): ActivityBuilder<A> {
         createIntent = createIntent andThen { f(it); it }
+        return this
+    }
+
+    fun withAnimData(animData: AnimData?): ActivityBuilder<A> {
+        this.animData = animData
+        return this
+    }
+
+    fun animDataOrDefault(animData: AnimData?): ActivityBuilder<A> {
+        if (this.animData == null)
+            this.animData = animData
         return this
     }
 }
@@ -51,21 +66,26 @@ object ActivitiesRoute {
             IO { vd toT YResult.success(builder.createIntent(cxt)) }
         }
 
-    fun startActivity(intent: Intent): YRoute<ActivitiesState, Activity> =
+    fun startActivity(intent: Intent, animData: AnimData? = globalDefaultAnimData): YRoute<ActivitiesState, Activity> =
         routeF { vd, cxt ->
             Logger.d("startActivity", "start startActivity action")
             binding {
                 val top: Context = vd.list.lastOrNull()?.activity ?: cxt.app
 
                 Logger.d("startActivity", "startActivity: intent=$intent")
-                !IO { top.startActivity(intent) }
+                !IO {
+                    top.startActivity(intent)
+                    if (animData != null && top is Activity)
+                        top.overridePendingTransition(animData.enterAnim, animData.enterStayAnimForActivity)
+                    else (top as? Activity)?.overridePendingTransition(0, 0)
+                }
 
                 Logger.d("startActivity", "wait activity.")
                 val (act) = cxt.bindNextActivity()
                     .firstOrError().toIO()
                 Logger.d("startActivity", "get activity: $act")
 
-                vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
+                vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = animData)) toT
                         (if (cxt.checkComponentClass(intent, act)) YResult.success(act)
                         else Fail(
                             "startActivity | start activity is Success, but can not get target activity: " +
@@ -74,18 +94,23 @@ object ActivitiesRoute {
             }
         }
 
-    fun startActivityForResult(intent: Intent, requestCode: Int): YRoute<ActivitiesState, Activity> =
+    fun startActivityForResult(intent: Intent, requestCode: Int, animData: AnimData? = globalDefaultAnimData): YRoute<ActivitiesState, Activity> =
         routeF { vd, cxt ->
             binding {
                 val top = vd.list.lastOrNull()?.activity
 
                 if (top != null) {
-                    !IO { top.startActivityForResult(intent, requestCode) }
+                    !IO {
+                        top.startActivityForResult(intent, requestCode)
+                        if (animData != null)
+                            top.overridePendingTransition(animData.enterAnim, animData.enterStayAnimForActivity)
+                        else top.overridePendingTransition(0, 0)
+                    }
 
                     val (act) = cxt.bindNextActivity()
                         .firstOrError().toIO()
 
-                    vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
+                    vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = animData)) toT
                             (if (cxt.checkComponentClass(intent, act)) YResult.success(act)
                             else Fail(
                                 "startActivity | start activity is Success, but can not get target activity: " +
@@ -103,13 +128,18 @@ object ActivitiesRoute {
 
                 if (top != null) {
                     val requestCode = Random.nextInt() and 0x0000ffff
-
-                    !IO { top.startActivityForResult(intent, requestCode) }
+                    val animData = builder.animData
+                    !IO {
+                        top.startActivityForResult(intent, requestCode)
+                        if (animData != null)
+                            top.overridePendingTransition(animData.enterAnim, animData.enterStayAnimForActivity)
+                        else top.overridePendingTransition(0, 0)
+                    }
 
                     val (activity) = cxt.bindNextActivity()
                         .firstOrError().toIO()
 
-                    val newState = vd.copy(list = vd.list + ActivityData(activity, CoreID.get()))
+                    val newState = vd.copy(list = vd.list + ActivityData(activity, CoreID.get(), animData = animData))
 
                     newState toT if (activity is ActivityLifecycleOwner && builder.clazz.isInstance(activity)) {
                         Success(activity.bindActivityLife().ofType(ActivityLifeEvent.OnActivityResult::class.java)
@@ -127,10 +157,15 @@ object ActivitiesRoute {
     val backActivity: YRoute<ActivitiesState, Unit> =
         routeF { vd, cxt ->
             binding {
-                val top = vd.list.lastOrNull()?.activity
+                val top = vd.list.lastOrNull()
 
                 if (top != null) {
-                    !IO { top.finish() }
+                    !IO {
+                        top.activity.finish()
+                        if (top.animData != null)
+                            top.activity.overridePendingTransition(0, top.animData.exitAnim)
+                        else top.activity.overridePendingTransition(0, 0)
+                    }
 
                     val newState = vd.copy(list = vd.list.dropLast(1))
 
@@ -145,7 +180,12 @@ object ActivitiesRoute {
                 val targetItem = vd.list.firstOrNull { it.hashTag == targetData.hashTag }
 
                 if (targetItem != null) {
-                    !IO { targetItem.activity.finish() }
+                    !IO {
+                        targetItem.activity.finish()
+                        if (targetItem.animData != null)
+                            targetItem.activity.overridePendingTransition(0, targetItem.animData.exitAnim)
+                        else targetItem.activity.overridePendingTransition(0, 0)
+                    }
 
                     val newState = vd.copy(list = vd.list.filter { it.hashTag != targetData.hashTag })
 
@@ -213,7 +253,8 @@ fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit>
                         list = state.list + ActivityData(
                             event.activity,
                             CoreID.get(),
-                            mapOf("message" to "this is globalActivityLogic auto generate ActivityData item.")
+                            mapOf("message" to "this is globalActivityLogic auto generate ActivityData item."),
+                            animData = null
                         )
                     )
                 } else {

@@ -8,7 +8,6 @@ import android.os.Build
 import android.os.Bundle
 import android.transition.ChangeBounds
 import android.transition.ChangeTransform
-import android.transition.Fade
 import android.transition.TransitionSet
 import android.view.View
 import androidx.annotation.IdRes
@@ -33,6 +32,7 @@ import java.lang.ClassCastException
 import kotlin.random.Random
 import androidx.annotation.AnimRes
 import androidx.core.view.ViewCompat
+import indi.yume.tools.yroute.RouteConfig.globalDefaultAnimData
 
 
 //data class FragActivityData<out VD>(override val activity: FragmentActivity,
@@ -57,6 +57,12 @@ data class StackFragState<F, out Type : StackType<F>>(
     val stack: Type,
     val fm: FragmentManager)
 
+data class AnimData(
+        @AnimRes val enterAnim: Int = R.anim.fragment_left_enter,
+        @AnimRes val exitAnim: Int = R.anim.fragment_left_exit,
+        @AnimRes val enterStayAnimForActivity: Int = R.anim.stay_anim
+)
+
 interface StackHost<F, out T : StackType<F>> {
     @get:IdRes
     val fragmentId: Int
@@ -65,34 +71,17 @@ interface StackHost<F, out T : StackType<F>> {
 
     var controller: StackController
 
-    var fragmentExitAnim: Int
-        get() = controller.fragmentExitAnim
+    var defaultAnim: AnimData?
+        get() = controller.defaultAnim
         set(value) {
-            controller.fragmentExitAnim = value
-        }
-
-    var fragmentEnterAnim: Int
-        get() = controller.fragmentEnterAnim
-        set(value) {
-            controller.fragmentEnterAnim = value
-        }
-
-    var activityEnterStayAnim: Int
-        get() = controller.activityEnterStayAnim
-        set(value) {
-            controller.activityEnterStayAnim = value
+            controller.defaultAnim = value
         }
 }
 
 interface StackController {
     var hashTag: Long?
 
-    @get:AnimRes
-    var fragmentExitAnim: Int
-    @get:AnimRes
-    var fragmentEnterAnim: Int
-    @get:AnimRes
-    var activityEnterStayAnim: Int
+    var defaultAnim: AnimData?
 
     companion object {
         fun defaultController(): StackController = StackControllerImpl()
@@ -101,9 +90,7 @@ interface StackController {
 
 class StackControllerImpl(
         override var hashTag: Long? = null,
-        override var fragmentExitAnim: Int = R.anim.fragment_left_exit,
-        override var fragmentEnterAnim: Int = R.anim.fragment_left_enter,
-        override var activityEnterStayAnim: Int = R.anim.stay_anim) : StackController
+        override var defaultAnim: AnimData? = globalDefaultAnimData) : StackController
 
 typealias TableTag = String
 
@@ -121,11 +108,19 @@ sealed class StackType<T> {
     }
 }
 
-data class FItem<T>(val t: T, val hashTag: Long, val tag: Any? = null)
+data class FItem<T>(val t: T, val hashTag: Long, val tag: Any? = null, val anim: AnimData?)
 
-open class FragmentBuilder<out F>(val clazz: Class<out F>) {
-    internal var createIntent: RouteCxt.() -> Intent = {
-        Intent(app, clazz)
+open class FragmentBuilder<out F> {
+    internal var createIntent: RouteCxt.() -> Intent
+
+    constructor(clazz: Class<out F>) {
+        createIntent = {
+            Intent(app, clazz)
+        }
+    }
+
+    constructor(intent: Intent) {
+        createIntent = { intent }
     }
 
     internal var doForFragment: RouteCxt.(Any) -> Unit = { }
@@ -134,8 +129,7 @@ open class FragmentBuilder<out F>(val clazz: Class<out F>) {
 
     var fragmentTag: Any? = null
 
-    @AnimRes var enterAnim: Int? = null
-    @AnimRes var exitAnim: Int? = null
+    var animData: AnimData? = globalDefaultAnimData
 
     fun withParam(data: Bundle): FragmentBuilder<F> {
         createIntent = createIntent andThen { it.putExtras(data) }
@@ -163,6 +157,11 @@ open class FragmentBuilder<out F>(val clazz: Class<out F>) {
         this.stackTag = tag
         return this
     }
+
+    fun withAnimData(anim: AnimData?): FragmentBuilder<F> {
+        this.animData = anim
+        return this
+    }
 }
 
 interface FragmentParam<T> {
@@ -180,10 +179,21 @@ fun <T, P> FragmentBuilder<T>.withParam(param: P): FragmentBuilder<T> where T : 
 typealias Checker<T> = (T) -> Boolean
 
 
-interface StackFragment {
+interface StackFragment : FragmentLifecycleOwner {
     var controller: FragController
 
-    fun onFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {  }
+    fun onFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
+        if (this is Fragment)
+            makeState(FragmentLifeEvent.OnFragmentResult(this, requestCode, resultCode, data))
+    }
+
+    fun onShow(mode: OnShowMode) {
+        if (this is Fragment) makeState(FragmentLifeEvent.OnShow(this, mode))
+    }
+
+    fun onHide(mode: OnHideMode) {
+        if (this is Fragment) makeState(FragmentLifeEvent.OnHide(this, mode))
+    }
 
     val requestCode: Int
         get() = controller.requestCode
@@ -422,14 +432,19 @@ object StackRoute {
             .transform { vd, cxt, intent ->
                 binding {
                     val top: Context = vd.list.lastOrNull()?.activity ?: cxt.app
-
-                    !IO { top.startActivity(intent) }
+                    val anim = builder.animData
+                    !IO {
+                        top.startActivity(intent)
+                        if (anim != null && top is Activity)
+                            top.overridePendingTransition(anim.enterAnim, anim.enterStayAnimForActivity)
+                        else (top as? Activity)?.overridePendingTransition(0, 0)
+                    }
 
                     val (act) = cxt.bindNextActivity()
                         .firstOrError().toIO()
 
                     if (act !is StackHost<*, *> || act !is ActivityLifecycleOwner) {
-                        vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
+                        vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = anim)) toT
                                 YResult.fail("Stack Activity must implements `StackHost` and `ActivityLifecycleOwner` interface.")
                     } else if (cxt.checkComponentClass(intent, act)) {
                         val host = act as StackHost<F, T>
@@ -438,7 +453,7 @@ object StackRoute {
 
                         vd.copy(list = vd.list + ActivityData(
                             activity = act, hashTag = hashTag,
-                            extra = emptyMap()
+                            extra = emptyMap(), animData = builder.animData
                         ).putStackExtra(StackActivityExtraState(
                             activity = act as A,
                             state = StackFragState(
@@ -447,7 +462,7 @@ object StackRoute {
                                 fm = act.supportFragmentManager
                             )))) toT YResult.success<A>(act)
                     } else {
-                        vd.copy(list = vd.list + ActivityData(act, CoreID.get())) toT
+                        vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = anim)) toT
                                 YResult.fail("startActivity | start activity is Success, but can not get target activity: " +
                                         "target is ${intent.component?.className} but get is $act", null)
                     }
@@ -545,15 +560,23 @@ object StackRoute {
     }
 
     fun <F, T : StackType<F>, R> YRoute<StackInnerState<StackFragState<F, T>>, R>.stackTran(): YRoute<StackFragState<F, T>, R> =
+            mapResult { IO.just(YResult.success(it)) }.stackTranIO()
+
+    fun <F, T : StackType<F>, R> YRoute<StackInnerState<StackFragState<F, T>>, IO<YResult<R>>>.stackTranIO(): YRoute<StackFragState<F, T>, R> =
         routeF { vd, cxt ->
             binding {
                 val fm = vd.fm
                 val ft = !IO { fm.beginTransaction() }
                 val innerState = StackInnerState(vd, vd.host.fragmentId, fm, ft)
 
-                val (newInnerState, result) = !this@stackTran.runRoute(innerState, cxt)
+                val (newInnerState, resultIO) = !this@stackTranIO.runRoute(innerState, cxt)
 
-                !IO { newInnerState.ft.commitAllowingStateLoss() }
+                !IO { newInnerState.ft.routeExecFT() }
+
+                val result = when (resultIO) {
+                    is Fail -> resultIO
+                    is Success -> !resultIO.t
+                }
 
                 newInnerState.state toT result
             }
@@ -571,63 +594,162 @@ object StackRoute {
             }
         }
 
+    //<editor-fold desc="Add Fragment Core func">
     fun <F> putFragAtSingle(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Single<F>>, F>
-            where F : Fragment, F : StackFragment =
-        routeF { vd, cxt ->
-            val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag)
-            fragment.controller.hashTag = newItem.hashTag
-
-            val stackState = vd.state
-            val newStack = stackState.copy(list = stackState.list + newItem)
-
-            IO {
-                for (i in stackState.list.size - 1 downTo 0) {
-                    val f = stackState.list[i]
-                    if (f.t.isVisible) vd.ft.hide(f.t)
-                }
-                vd.ft.add(vd.fragmentId, fragment)
-
-                vd.copy(state = newStack) toT
-                        YResult.success(fragment)
-            }
-        }
+            where F : Fragment, F : StackFragment {
+        val animData = builder.animData
+        return if (animData != null)
+            putFragAtSingleWithAnim(animData, builder, fragment)
+        else
+            putFragAtSingleNoAnim(builder, fragment)
+    }
 
     fun <F> putFragAtTable(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Table<F>>, F>
+            where F : Fragment, F : StackFragment {
+        val animData = builder.animData
+        return if (animData != null)
+            putFragAtTableWithAnim(animData, builder, fragment)
+        else
+            putFragAtTableNoAnim(builder, fragment)
+    }
+
+    fun <F> putFragAtSingleNoAnim(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Single<F>>, F>
             where F : Fragment, F : StackFragment =
-        routeF { vd, cxt ->
-            val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag)
-            fragment.controller.hashTag = newItem.hashTag
+            routeF { vd, cxt ->
+                val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag, null)
+                fragment.controller.hashTag = newItem.hashTag
 
-            val oldStackState = vd.state
-            val stackTag = builder.stackTag
+                val stackState = vd.state
+                val newStack = stackState.copy(list = stackState.list + newItem)
 
-            val targetTag = stackTag ?: oldStackState.current?.first ?: oldStackState.defaultTag
-
-            binding {
-                val innerState =
-                    if (oldStackState.current == null || oldStackState.current.first != stackTag) {
-                        val (state, beforeFrag) = !switchStackAtTable<F>(targetTag, true).runRoute(vd, cxt)
-                        state
-                    } else vd
-
-                val innerStackState = innerState.state
-                val targetStack = innerStackState.table[targetTag] ?: emptyList()
-                val newTable = innerState.state.table - targetTag + (targetTag to targetStack + newItem)
-                val backF = innerState.state.current?.second?.t
-
-                !IO {
+                IO {
+                    for (i in stackState.list.size - 1 downTo 0) {
+                        val f = stackState.list[i]
+                        if (f.t.isVisible) vd.ft.hide(f.t)
+                    }
                     vd.ft.add(vd.fragmentId, fragment)
-                    if (backF != null && backF.isVisible) vd.ft.hide(backF)
-                }
 
-                innerState.copy(
-                    state = innerState.state.copy(
-                        table = newTable,
-                        current = targetTag to newItem
-                    )
-                ) toT Success(fragment)
+                    vd.copy(state = newStack) toT
+                            YResult.success(fragment)
+                }
             }
+
+    fun <F> putFragAtTableNoAnim(builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Table<F>>, F>
+            where F : Fragment, F : StackFragment =
+            routeF { vd, cxt ->
+                val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag, null)
+                fragment.controller.hashTag = newItem.hashTag
+
+                val oldStackState = vd.state
+                val stackTag = builder.stackTag
+
+                val targetTag = stackTag ?: oldStackState.current?.first ?: oldStackState.defaultTag
+
+                binding {
+                    val innerState =
+                            if (oldStackState.current == null || oldStackState.current.first != stackTag) {
+                                val (state, beforeFrag) = !switchStackAtTable<F>(targetTag, true).runRoute(vd, cxt)
+                                state
+                            } else vd
+
+                    val innerStackState = innerState.state
+                    val targetStack = innerStackState.table[targetTag] ?: emptyList()
+                    val newTable = innerState.state.table - targetTag + (targetTag to targetStack + newItem)
+                    val backF = innerState.state.current?.second?.t
+
+                    !IO {
+                        vd.ft.add(vd.fragmentId, fragment)
+                        if (backF != null && backF.isVisible) vd.ft.hide(backF)
+                    }
+
+                    innerState.copy(
+                            state = innerState.state.copy(
+                                    table = newTable,
+                                    current = targetTag to newItem
+                            )
+                    ) toT Success(fragment)
+                }
+            }
+
+    fun <F> putFragAtSingleWithAnim(animData: AnimData, builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Single<F>>, F>
+            where F : Fragment, F : StackFragment =
+            routeF { vd, cxt ->
+                val stackState = vd.state
+                if (stackState.list.isEmpty())
+                    return@routeF putFragAtSingleNoAnim(builder, fragment).runRoute(vd, cxt)
+
+                val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag, animData)
+                fragment.controller.hashTag = newItem.hashTag
+
+                val newStack = stackState.copy(list = stackState.list + newItem)
+
+                val backF = stackState.list.last()
+
+                binding {
+                    !vd.fm.putFragWithAnim(animData, vd.fragmentId, backF.t, fragment)
+
+                    vd.copy(state = newStack) toT
+                            YResult.success(fragment)
+                }
+            }
+
+    fun <F> putFragAtTableWithAnim(animData: AnimData, builder: FragmentBuilder<F>, fragment: F): YRoute<StackInnerState<StackType.Table<F>>, F>
+            where F : Fragment, F : StackFragment =
+            routeF { vd, cxt ->
+                val newItem = FItem<F>(fragment, CoreID.get(), builder.fragmentTag, animData)
+                fragment.controller.hashTag = newItem.hashTag
+
+                val oldStackState = vd.state
+                val stackTag = builder.stackTag
+
+                val targetTag = stackTag ?: oldStackState.current?.first ?: oldStackState.defaultTag
+
+                binding {
+                    val innerState =
+                            if (oldStackState.current == null || oldStackState.current.first != stackTag) {
+                                val (state, beforeFrag) = !switchStackAtTable<F>(targetTag, true).runRoute(vd, cxt)
+                                state
+                            } else vd
+
+                    val innerStackState = innerState.state
+                    val targetStack = innerStackState.table[targetTag] ?: emptyList()
+                    val newTable = innerState.state.table - targetTag + (targetTag to targetStack + newItem)
+                    val backF = innerState.state.current?.second?.t
+
+                    if (backF != null)
+                        !vd.fm.putFragWithAnim(animData, vd.fragmentId, backF, fragment)
+                    else
+                        !IO { vd.ft.add(vd.fragmentId, fragment) }
+
+                    innerState.copy(
+                            state = innerState.state.copy(
+                                    table = newTable,
+                                    current = targetTag to newItem
+                            )
+                    ) toT Success(fragment)
+                }
+            }
+
+    fun <F> FragmentManager.putFragWithAnim(animData: AnimData, fragmentId: Int,
+                                            backF: F, targetF: F): IO<Unit> where F : Fragment, F : StackFragment = binding {
+        !trans {
+            show(backF)
+            add(fragmentId, targetF)
         }
+
+        val viewEvent = !targetF.bindFragmentLife()
+                .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                .firstOrError().toIO()
+
+        backF.onHide(OnHideMode.OnStartNew)
+        targetF.onShow(OnShowMode.OnCreate)
+        !startAnim(animData.enterAnim, viewEvent.view).toIO()
+
+        !trans { hide(backF) }
+        backF.onHide(OnHideMode.OnStartNewAfterAnim)
+        targetF.onShow(OnShowMode.OnCreateAfterAnim)
+    }
+    //</editor-fold>
 
     fun <F> switchStackAtTable(targetTag: TableTag, silentSwitch: Boolean = false): YRoute<StackInnerState<StackType.Table<F>>, F?> where F : Fragment =
         routeF { vd, cxt ->
@@ -662,7 +784,7 @@ object StackRoute {
                                 vd.ft.add(vd.fragmentId, result.t)
                                 if (silentSwitch) vd.ft.hide(result.t)
 
-                                val newItem = FItem<F>(result.t, CoreID.get(), targetTag)
+                                val newItem = FItem<F>(result.t, CoreID.get(), targetTag, null)
                                 vd.copy(
                                     state = vd.state.copy(
                                         table = stackState.table + (targetTag to targetStack + newItem),
@@ -723,13 +845,16 @@ object StackRoute {
         Unit
     }
 
-    fun <F> finishFragmentForSingle(target: StackFragment?): YRoute<StackFragState<F, StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>> where F : Fragment =
+    fun <F> finishFragmentForSingle(target: StackFragment?): YRoute<StackFragState<F, StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>>
+            where F : Fragment, F : StackFragment =
         finishFragmentAtSingle<F>(target).mapInner(lens = stackTypeLens<F, StackType.Single<F>>()).stackTran()
 
-    fun <F> finishFragmentForTable(target: StackFragment?): YRoute<StackFragState<F, StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> where F : Fragment =
+    fun <F> finishFragmentForTable(target: StackFragment?): YRoute<StackFragState<F, StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>>
+            where F : Fragment, F : StackFragment =
         finishFragmentAtTable<F>(target).mapInner(lens = stackTypeLens<F, StackType.Table<F>>()).stackTran()
 
-    fun <F : Fragment> finishFragmentAtSingle(targetF: StackFragment?): YRoute<StackInnerState<StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>> =
+    //<editor-fold defaultstate="collapsed" desc="Normal useless">
+    fun <F: Fragment> finishFragmentAtSingleNoAnim(targetF: StackFragment?): YRoute<StackInnerState<StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>> =
         routeF { state, cxt ->
             val stack = state.state
 
@@ -765,42 +890,150 @@ object StackRoute {
             }
         }
 
-    fun <F : Fragment> finishFragmentAtTable(target: StackFragment?): YRoute<StackInnerState<StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> =
-        routeF { state, cxt ->
-            val stack = state.state
+    fun <F : Fragment> finishFragmentAtTableNoAnim(target: StackFragment?): YRoute<StackInnerState<StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> =
+            routeF { state, cxt ->
+                val stack = state.state
 
-            val result = tableStackFGetter<F>(target).run(stack).fix()
-            println("finishFragmentAtSingle>>> result: ${result}")
+                val result = tableStackFGetter<F>(target).run(stack).fix()
+                println("finishFragmentAtSingle>>> result: ${result}")
 
-            val targetItem = when (result) {
-                is Either.Left -> return@routeF when {
-                    target == null -> IO.just(state toT Success(null toT FinishResult.FinishParent))
-                    else -> IO.just(state toT result.a)
+                val targetItem = when (result) {
+                    is Either.Left -> return@routeF when {
+                        target == null -> IO.just(state toT Success(null toT FinishResult.FinishParent))
+                        else -> IO.just(state toT result.a)
+                    }
+                    is Either.Right -> result.b
                 }
-                is Either.Right -> result.b
+                val (targetTag, backF, targetF) = targetItem
+
+                binding {
+                    val newState = state.copy(state = stack.copy(
+                            table = stack.table + (targetTag to (stack.table[targetTag]?.filter { it.hashTag != targetF.hashTag }
+                                    ?: emptyList())),
+                            current = if (stack.current?.second?.hashTag == targetF.hashTag) backF?.let { targetTag to it } else stack.current))
+
+                    !IO {
+                        state.ft.remove(targetF.t)
+                        if (backF != null) state.ft.show(backF.t)
+                    }
+
+                    if (targetF.t is StackFragment && backF != null && backF.t is StackFragment)
+                        !dealFinishForResult(targetF.t, backF.t)
+
+                    newState toT Success(
+                            targetItem toT if (newState.state.table[targetTag].isNullOrEmpty()) FinishResult.FinishParent
+                            else FinishResult.FinishOver
+                    )
+                }
             }
-            val (targetTag, backF, targetF) = targetItem
+    //</editor-fold>
 
-            binding {
-                val newState = state.copy(state = stack.copy(
-                    table = stack.table + (targetTag to (stack.table[targetTag]?.filter { it.hashTag != targetF.hashTag }
-                        ?: emptyList())),
-                    current = if (stack.current?.second?.hashTag == targetF.hashTag) backF?.let { targetTag to it } else stack.current))
+    fun <F> finishFragmentAtSingle(targetF: StackFragment?): YRoute<StackInnerState<StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>>
+            where F : Fragment, F : StackFragment =
+            routeF { state, cxt ->
+                val stack = state.state
 
-                !IO {
-                    state.ft.remove(targetF.t)
-                    if (backF != null) state.ft.show(backF.t)
+                val result = singleStackFGetter<F>(targetF).run(stack).fix()
+
+                val target = when (result) {
+                    is Either.Left -> return@routeF when {
+                        targetF == null -> IO.just(state toT Success(null toT FinishResult.FinishParent))
+                        else -> IO.just(state toT result.a)
+                    }
+                    is Either.Right -> result.b
+                }
+                val (backItem, targetItem) = target
+
+                if (backItem == null) {
+                    // Do not finish top fragment
+                    return@routeF IO.just(state toT Success(null toT FinishResult.FinishParent))
                 }
 
-                if (targetF.t is StackFragment && backF != null && backF.t is StackFragment)
+                binding {
+                    val newState =
+                            state.copy(state = stack.copy(list = stack.list.filter { it.hashTag != targetItem.hashTag }))
+
+                    !dealFinishForResult(targetItem.t, backItem.t)
+
+                    val animData = targetItem.anim
+                    if (animData == null) {
+                        // NoAnim
+                        !IO {
+                            state.ft.remove(targetItem.t)
+                            state.ft.show(backItem.t)
+                        }
+                        backItem.t.onShow(OnShowMode.OnBack)
+                    } else {
+                        !state.fm.popFragWithAnim(animData, backItem.t, targetItem.t)
+                    }
+
+                    newState toT Success(
+                            target toT when {
+                                newState.state.list.isEmpty() -> FinishResult.FinishParent
+                                else -> FinishResult.FinishOver
+                            }
+                    )
+                }
+            }
+
+    fun <F> finishFragmentAtTable(target: StackFragment?): YRoute<StackInnerState<StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>>
+            where F : Fragment, F : StackFragment =
+            routeF { state, cxt ->
+                val stack = state.state
+
+                val result = tableStackFGetter<F>(target).run(stack).fix()
+                println("finishFragmentAtSingle>>> result: ${result}")
+
+                val targetItem = when (result) {
+                    is Either.Left -> return@routeF when {
+                        target == null -> IO.just(state toT Success(null toT FinishResult.FinishParent))
+                        else -> IO.just(state toT result.a)
+                    }
+                    is Either.Right -> result.b
+                }
+                val (targetTag, backF, targetF) = targetItem
+
+                if (backF == null) {
+                    // Do not finish top fragment
+                    return@routeF IO.just(state toT Success(null toT FinishResult.FinishParent))
+                }
+
+                binding {
+                    val newState = state.copy(state = stack.copy(
+                            table = stack.table + (targetTag to (stack.table[targetTag]?.filter { it.hashTag != targetF.hashTag }
+                                    ?: emptyList())),
+                            current = if (stack.current?.second?.hashTag == targetF.hashTag) backF?.let { targetTag to it } else stack.current))
+
                     !dealFinishForResult(targetF.t, backF.t)
 
-                newState toT Success(
-                        targetItem toT if (newState.state.table[targetTag].isNullOrEmpty()) FinishResult.FinishParent
-                        else FinishResult.FinishOver
-                )
+                    val animData = targetF.anim
+                    if (animData == null) {
+                        // NoAnim
+                        !IO {
+                            state.ft.remove(targetF.t)
+                            state.ft.show(backF.t)
+                        }
+                        backF.t.onShow(OnShowMode.OnBack)
+                    } else {
+                        !state.fm.popFragWithAnim(animData, backF.t, targetF.t)
+                    }
+
+                    newState toT Success(
+                            targetItem toT if (newState.state.table[targetTag].isNullOrEmpty()) FinishResult.FinishParent
+                            else FinishResult.FinishOver
+                    )
+                }
             }
-        }
+
+    fun <F> FragmentManager.popFragWithAnim(animData: AnimData,
+                                            backF: F, targetF: F): IO<Unit> where F : Fragment, F : StackFragment = binding {
+        !trans { show(backF) }
+
+        !startAnim(animData.exitAnim, targetF.view).toIO()
+
+        !trans { remove(targetF) }
+        backF.onShow(OnShowMode.OnBack)
+    }
     //</editor-fold>
 
     fun <F, T, A> routeStartStackActivity(builder: ActivityBuilder<A>)
@@ -809,6 +1042,19 @@ object StackRoute {
             startStackFragActivity(builder)
 
     fun <F, T, A> routeGetStackFromActivity(activity: A)
+            : YRoute<ActivitiesState, StackFragState<F, T>>
+            where F : Fragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
+            routeF { actState, routeCxt ->
+                val host = activity as StackHost<F, T>
+                val lens = stackActivityLens(host).composeNonNull(stackStateForActivityLens<F, T>())
+
+                val target = lens.get(actState)
+
+                IO.just(actState toT
+                        if (target != null) Success(target) else Fail("Can not found stack at target activity: $activity"))
+            }
+
+    fun <F, T, A> routeGetStackLensFromActivity(activity: A)
             : YRoute<ActivitiesState, Lens<ActivitiesState, StackFragState<F, T>?>>
             where F : Fragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
             routeF { actState, routeCxt ->
@@ -817,7 +1063,7 @@ object StackRoute {
                 IO.just(actState toT Success(lens))
             }
 
-    fun <F, T> routeGetStackActivityFromFrag(frag: Fragment)
+    fun <F, T> routeGetStackLensFromFrag(frag: Fragment)
             : YRoute<ActivitiesState, Lens<ActivitiesState, StackFragState<F, T>?>>
             where F : Fragment, T : StackType<F> =
             routeF { actState, routeCxt ->
@@ -836,7 +1082,7 @@ object StackRoute {
 
     fun <F, R> routeRunAtFrag(frag: Fragment, route: YRoute<StackFragState<F, StackType<F>>, R>): YRoute<ActivitiesState, R>
             where F : Fragment =
-            routeGetStackActivityFromFrag<F, StackType<F>>(frag).composeState(route.stateNullable("routeRunAtFrag"))
+            routeGetStackLensFromFrag<F, StackType<F>>(frag).composeState(route.stateNullable("routeRunAtFrag"))
 
     infix fun <F, R> YRoute<StackFragState<F, StackType<F>>, R>.runAtF(frag: Fragment): YRoute<ActivitiesState, R>
             where F : Fragment =
@@ -844,11 +1090,24 @@ object StackRoute {
 
     fun <F, A, T, R> routeRunAtAct(act: A, route: YRoute<StackFragState<F, T>, R>): YRoute<ActivitiesState, R>
             where F : Fragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
-            routeGetStackFromActivity(act).composeState(route.stateNullable("routeRunAtFrag"))
+            routeGetStackLensFromActivity(act).composeState(route.stateNullable("routeRunAtFrag"))
 
     infix fun <F, A, T, R> YRoute<StackFragState<F, T>, R>.runAtA(act: A): YRoute<ActivitiesState, R>
             where F : Fragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
             routeRunAtAct(act, this)
+
+    infix fun <F, A, T> YRoute<StackFragState<F, T>, Tuple2<F?, FinishResult>>.runAtADealFinish(act: A): YRoute<ActivitiesState, FinishResult>
+            where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
+            routeRunAtAct(act, this).flatMapR { (lastF, result) ->
+                when (result) {
+                    FinishResult.FinishOver -> routeId<ActivitiesState>()
+                    FinishResult.FinishParent -> {
+                        if (lastF != null && lastF.requestCode != -1)
+                            act.setResult(lastF.resultCode, lastF.resultData?.let { Intent().putExtras(it) })
+                        ActivitiesRoute.routeFinish(act)
+                    }
+                }.mapResult { result }
+            }
 
     fun <F> routeStartFragmentAtSingle(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Single<F>>, F>
             where F : Fragment, F : StackFragment =
@@ -893,24 +1152,56 @@ object StackRoute {
     fun <F> routeSwitchTag(tag: TableTag): YRoute<StackFragState<F, StackType.Table<F>>, F?> where F : Fragment =
             switchStackAtTable<F>(tag).mapInner(lens = stackTypeLens<F, StackType.Table<F>>()).stackTran()
 
-    fun <F : Fragment> routeFinishFragmentAtSingle(target: StackFragment?): YRoute<StackFragState<F, StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>> =
+    //<editor-fold defaultstate="collapsed" desc="Normal useless">
+    fun <F : Fragment> routeFinishFragmentAtSingleNoAnim(target: StackFragment?): YRoute<StackFragState<F, StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>> =
+            finishFragmentAtSingleNoAnim<F>(target).mapInner(lens = stackTypeLens<F, StackType.Single<F>>()).stackTran()
+
+    fun <F : Fragment> routeFinishFragmentAtTableNoAnim(target: StackFragment?): YRoute<StackFragState<F, StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> =
+            finishFragmentAtTableNoAnim<F>(target).mapInner(lens = stackTypeLens<F, StackType.Table<F>>()).stackTran()
+
+    fun <F : Fragment> routeFinishFragmentNoAnim(target: StackFragment?): YRoute<StackFragState<F, StackType<F>>, Tuple2<Either<SingleTarget<F>, TableTarget<F>>, FinishResult>> =
+            foldForFragState(
+                    routeFinishFragmentAtSingleNoAnim<F>(target)
+                            .mapResult { (it.a.left() as Either<SingleTarget<F>, TableTarget<F>>) toT it.b },
+                    routeFinishFragmentAtTableNoAnim<F>(target)
+                            .mapResult { (it.a.right() as Either<SingleTarget<F>, TableTarget<F>>) toT it.b })
+    //</editor-fold>
+
+    fun <F> routeFinishFragmentAtSingle(target: StackFragment?): YRoute<StackFragState<F, StackType.Single<F>>, Tuple2<SingleTarget<F>?, FinishResult>>
+            where F : Fragment, F : StackFragment =
             finishFragmentAtSingle<F>(target).mapInner(lens = stackTypeLens<F, StackType.Single<F>>()).stackTran()
 
-    fun <F : Fragment> routeFinishFragmentAtTable(target: StackFragment?): YRoute<StackFragState<F, StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>> =
+    fun <F> routeFinishFragmentAtTable(target: StackFragment?): YRoute<StackFragState<F, StackType.Table<F>>, Tuple2<TableTarget<F>?, FinishResult>>
+            where F : Fragment, F : StackFragment =
             finishFragmentAtTable<F>(target).mapInner(lens = stackTypeLens<F, StackType.Table<F>>()).stackTran()
 
-    fun <F : Fragment> routeFinishFragment(target: StackFragment?): YRoute<StackFragState<F, StackType<F>>, Tuple2<Either<SingleTarget<F>, TableTarget<F>>, FinishResult>> =
+    fun <F> routeFinishFragment(target: StackFragment?): YRoute<StackFragState<F, StackType<F>>, Tuple2<Either<SingleTarget<F>?, TableTarget<F>?>, FinishResult>>
+            where F : Fragment, F : StackFragment =
             foldForFragState(
                     routeFinishFragmentAtSingle<F>(target)
-                            .mapResult { (it.a.left() as Either<SingleTarget<F>, TableTarget<F>>) toT it.b },
+                            .mapResult { (it.a.left() as Either<SingleTarget<F>?, TableTarget<F>?>) toT it.b },
                     routeFinishFragmentAtTable<F>(target)
-                            .mapResult { (it.a.right() as Either<SingleTarget<F>, TableTarget<F>>) toT it.b })
+                            .mapResult { (it.a.right() as Either<SingleTarget<F>?, TableTarget<F>?>) toT it.b })
+
+    fun <S, F> YRoute<S, Tuple2<SingleTarget<F>?, FinishResult>>.mapSingleFinishResult(): YRoute<S, Tuple2<F?, FinishResult>> =
+            mapResult { it.a?.target?.t toT it.b }
+
+    fun <S, F> YRoute<S, Tuple2<TableTarget<F>?, FinishResult>>.mapTableFinishResult(): YRoute<S, Tuple2<F?, FinishResult>> =
+            mapResult { it.a?.target?.t toT it.b }
+
+    fun <S, F> YRoute<S, Tuple2<Either<SingleTarget<F>?, TableTarget<F>?>, FinishResult>>.mapFinishResult(): YRoute<S, Tuple2<F?, FinishResult>> =
+            mapResult { (target, result) ->
+                when (target) {
+                    is Either.Left -> target.a?.backF?.t
+                    is Either.Right -> target.b?.target?.t
+                } toT result
+            }
 
     fun <F, A> routeStartFragAtNewSingleActivity(activityBuilder: ActivityBuilder<A>,
                                                  fragBuilder: FragmentBuilder<F>)
             : YRoute<ActivitiesState, Tuple2<A, F>>
             where F : Fragment, F : StackFragment, A : FragmentActivity, A : StackHost<F, StackType.Single<F>> =
-            routeStartStackActivity(activityBuilder)
+            routeStartStackActivity(activityBuilder.animDataOrDefault(fragBuilder.animData))
                     .flatMapR { activity ->
                         startFragmentForSingle(fragBuilder)
                                 .mapStateNullable(lens = stackActivityLens<F, StackType.Single<F>>(activity)
@@ -922,13 +1213,17 @@ object StackRoute {
                                                 fragBuilder: FragmentBuilder<F>)
             : YRoute<ActivitiesState, Tuple2<A, F>>
             where F : Fragment, F : StackFragment, A : FragmentActivity, A : StackHost<F, StackType.Table<F>> =
-            routeStartStackActivity(activityBuilder)
+            routeStartStackActivity(activityBuilder.animDataOrDefault(fragBuilder.animData))
                     .flatMapR { activity ->
                         startFragmentForTable(fragBuilder)
                                 .mapStateNullable(lens = stackActivityLens<F, StackType.Table<F>>(activity)
                                         .composeNonNull(stackStateForActivityLens<F, StackType.Table<F>>()))
                                 .mapResult { f -> activity toT f }
                     }
+
+    fun <F, T, A> routeOnBackPress(activity: A): YRoute<ActivitiesState, FinishResult>
+            where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
+            routeFinishFragment<F>(null).mapFinishResult() runAtADealFinish activity
 
     fun <F> startWithShared(builder: FragmentBuilder<F>, view: View): YRoute<StackFragState<F, StackType<F>>, F>
             where F : Fragment, F : StackFragment =

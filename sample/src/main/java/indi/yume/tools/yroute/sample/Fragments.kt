@@ -134,6 +134,20 @@ class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
         super.onCreateView(inflater, container, savedInstanceState)
         val view = inflater.inflate(R.layout.fragment_other, container, false)
         view.findViewById<TextView>(R.id.other_message).text = "page hash: ${hashCode()}"
+
+        view.findViewById<Button>(R.id.jump_with_anim_btn).setOnClickListener listener@{
+            val singleAct = requireActivity() as? SingleStackActivity ?: return@listener
+
+            StackRoute.run {
+                val builder: FragmentBuilder<BaseFragment> = FragmentBuilder(FragmentOther::class.java)
+                        .withAnimData(AnimData())
+                        .withParam(OtherParam("This is param from FragmentPage1."))
+
+                routeStartFragmentAtSingle(builder) runAtA singleAct
+            }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
+                println("Start Anim FragmentOther: $it")
+            })
+        }
         return view
     }
 

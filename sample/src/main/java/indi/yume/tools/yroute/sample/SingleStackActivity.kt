@@ -2,8 +2,13 @@ package indi.yume.tools.yroute.sample
 
 import android.os.Bundle
 import androidx.fragment.app.Fragment
+import arrow.core.Either
+import arrow.core.orNull
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.CoreEngine
+import indi.yume.tools.yroute.datatype.Success
+import indi.yume.tools.yroute.datatype.mapResult
+import indi.yume.tools.yroute.datatype.start
 
 class SingleStackActivity : BaseFragmentActivity<StackType.Single<BaseFragment>>(), StackHost<BaseFragment, StackType.Single<BaseFragment>> {
     val core: CoreEngine<ActivitiesState> by lazy { (application as App).core }
@@ -18,6 +23,8 @@ class SingleStackActivity : BaseFragmentActivity<StackType.Single<BaseFragment>>
     }
 
     override fun onBackPressed() {
-        super.onBackPressed()
+        StackRoute.routeOnBackPress(this).start(core).unsafeRunAsync { result ->
+            println("onBackPressed | result=$result")
+        }
     }
 }
