@@ -1,14 +1,11 @@
-package indi.yume.tools.yroute.sample
+package indi.yume.tools.yroute.sample.normal
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import arrow.core.Either
-import arrow.core.orNull
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.CoreEngine
-import indi.yume.tools.yroute.datatype.Success
-import indi.yume.tools.yroute.datatype.mapResult
 import indi.yume.tools.yroute.datatype.start
+import indi.yume.tools.yroute.sample.App
+import indi.yume.tools.yroute.sample.R
 
 class SingleStackActivity : BaseFragmentActivity<StackType.Single<BaseFragment>>(), StackHost<BaseFragment, StackType.Single<BaseFragment>> {
     val core: CoreEngine<ActivitiesState> by lazy { (application as App).core }

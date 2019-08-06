@@ -1,18 +1,15 @@
-package indi.yume.tools.yroute.sample
+package indi.yume.tools.yroute.fragmentmanager
 
 import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import indi.yume.tools.yroute.*
+import indi.yume.tools.yroute.ActivityLifeEvent
+import indi.yume.tools.yroute.ActivityLifecycleOwner
 import io.reactivex.subjects.Subject
 
-abstract class BaseFragmentActivity<T : StackType<BaseFragment>> : FragmentActivity(), ActivityLifecycleOwner, StackHost<BaseFragment, T> {
+abstract class BaseLifeActivity : Activity(), ActivityLifecycleOwner {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
-
-    override var controller: StackController = StackController.defaultController()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

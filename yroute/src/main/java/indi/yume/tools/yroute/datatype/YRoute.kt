@@ -68,6 +68,8 @@ fun <S> routeId(): YRoute<S, Unit> = routeF { s, c -> IO.just(s toT Success(Unit
 
 fun <S> routeGetState(): YRoute<S, S> = routeF { s, _ -> IO.just(s toT Success(s)) }
 
+fun <S, R> routeFromState(f: (S) -> R): YRoute<S, R> = routeF { s, _ -> IO.just(s toT Success(f(s))) }
+
 fun <S, R> routeFail(msg: String): YRoute<S, R> = routeF { s, _ -> IO.just(s toT Fail(msg)) }
 
 fun <S, T> routeFromIO(io: IO<T>): YRoute<S, T> =
@@ -484,7 +486,7 @@ class RouteCxt private constructor(val app: Application) {
     companion object {
         fun create(app: Application): IO<RouteCxt> = IO {
             val cxt = RouteCxt(app)
-            cxt.start().subscribe()
+            cxt.start().catchSubscribe()
             cxt
         }
     }

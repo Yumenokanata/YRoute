@@ -25,6 +25,14 @@
         android:textAllCaps="false"
         android:text="Jump To Other Fragment For Result"/>
 
+    <Button
+        android:id="@+id/jump_other_with_shared_view_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:text="Jump To Other Fragment With SharedView"
+        android:layout_marginTop="50dp"/>
+
     <EditText
         android:id="@+id/page_1_search_edit"
         android:layout_width="match_parent"

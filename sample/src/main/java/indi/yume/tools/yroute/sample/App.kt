@@ -8,6 +8,8 @@ import indi.yume.tools.yroute.datatype.YResult
 import indi.yume.tools.yroute.datatype.flatMapR
 import indi.yume.tools.yroute.datatype.lazy.start
 import indi.yume.tools.yroute.datatype.lazy.withParam
+import indi.yume.tools.yroute.fragmentmanager.BaseLifeActivity
+import indi.yume.tools.yroute.sample.normal.*
 
 class App : Application() {
     lateinit var core: MainCoreEngine<ActivitiesState>
@@ -17,21 +19,22 @@ class App : Application() {
 
         MainCoreEngine.apply {
             core = create(this@App, ActivitiesState(emptyList())).unsafeRunSync()
-            core.start().subscribe()
-            core.bindApp().subscribe()
+            core.start().catchSubscribe()
+            core.bindApp().catchSubscribe()
         }
 
         YRouteNavi.initNavi(core, UriRoute.build("test") {
             putRoute("/other/activity",
                     ActivitiesRoute.run {
-                        createActivityIntent<BaseActivity, ActivitiesState>(ActivityBuilder(OtherActivity::class.java))
+                        createActivityIntent<BaseLifeActivity, ActivitiesState>(ActivityBuilder(OtherActivity::class.java))
                                 .flatMapR { startActivityForResult(it, 1) }
                     })
 
             put("/other/fragment") { uri ->
-                val param = OtherParam(uri.query.getAllQuery()["param"] ?: "No param start.")
+                val param = OtherParam(uri.query.getAllQuery()["param"]
+                        ?: "No param start.")
                 StackRoute.run {
-                    routeStartFragAtNewSingleActivity(
+                    routeStartFragAtNewSingleActivity<BaseFragment, SingleStackActivity>(
                             ActivityBuilder(SingleStackActivity::class.java),
                             FragmentBuilder(FragmentOther::class.java).withParam(param)
                     )

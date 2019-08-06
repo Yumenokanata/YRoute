@@ -25,9 +25,7 @@ import indi.yume.tools.yroute.datatype.YResult
 import indi.yume.tools.yroute.datatype.Fail
 import indi.yume.tools.yroute.datatype.RouteCxt
 import indi.yume.tools.yroute.datatype.Success
-import io.reactivex.Completable
-import io.reactivex.Observable
-import io.reactivex.Single
+import io.reactivex.*
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import java.lang.Exception
@@ -208,6 +206,43 @@ fun <T> IO<T>.toCompletable(callback: (Either<Throwable, T>) -> Unit): Completab
     }.doOnDispose { ioDisposable?.invoke() }
 }
 
+fun Completable.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+)
+
+fun <T> Single<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+)
+
+fun <T> Maybe<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+)
+
+fun <T> Observable<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+)
+
+fun <T> Flowable<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+)
+
+fun <T> IO<T>.catchSubscribe(): Disposable = unsafeRunAsyncCancellable {
+    when(it) {
+        is Either.Left -> {
+            if (RouteConfig.showLog) it.a.printStackTrace()
+        }
+        is Either.Right -> {}
+    }
+}
+
+fun <T> IO<T>.subscribe(onError: (Throwable) -> Unit = {},
+                        onSuccess: (T) -> Unit = {}): Disposable = unsafeRunAsyncCancellable {
+    when (it) {
+        is Either.Left -> onError(it.a)
+        is Either.Right -> onSuccess(it.b)
+    }
+}
+
 
 fun RouteCxt.checkComponentClass(intent: Intent, obj: Any): Boolean =
     intent.component?.run {
@@ -247,5 +282,6 @@ fun startAnim(@AnimRes animRes: Int, target: View?): Completable = if (target ==
         override fun onAnimationStart(animation: Animation?) {}
 
     })
+    println("--------------> thread=${Thread.currentThread().name}")
     target.startAnimation(animation)
 }

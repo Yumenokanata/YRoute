@@ -27,9 +27,15 @@
                 <action android:name="android.intent.action.VIEW" />
             </intent-filter>
         </activity>
-        <activity android:name=".FragmentStackActivity"/>
-        <activity android:name=".OtherActivity"/>
-        <activity android:name=".SingleStackActivity"/>
+        <activity android:name=".normal.FragmentStackActivity"/>
+        <activity android:name=".normal.OtherActivity"/>
+        <activity android:name=".normal.SingleStackActivity"/>
+        <activity android:name=".normal.NormalMainActivity" />
+
+        <activity android:name=".fragmentmanager.FragmentStackActivity"/>
+        <activity android:name=".fragmentmanager.OtherActivity" />
+        <activity android:name=".fragmentmanager.SingleStackActivity"/>
+        <activity android:name=".fragmentmanager.SupportMainActivity" />
     </application>
 
 </manifest>

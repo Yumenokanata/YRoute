@@ -1,8 +1,7 @@
-package indi.yume.tools.yroute.sample
+package indi.yume.tools.yroute.sample.normal
 
 import android.os.Bundle
 import android.widget.Button
-import androidx.fragment.app.Fragment
 import arrow.core.Either
 import arrow.effects.IO
 import indi.yume.tools.yroute.*
@@ -13,6 +12,8 @@ import indi.yume.tools.yroute.datatype.lazy.lazyR2
 import indi.yume.tools.yroute.datatype.lazy.start
 import indi.yume.tools.yroute.datatype.lazy.withParams
 import indi.yume.tools.yroute.datatype.start
+import indi.yume.tools.yroute.sample.App
+import indi.yume.tools.yroute.sample.R
 
 class FragmentStackActivity : BaseFragmentActivity<StackType.Table<BaseFragment>>() {
     val core: CoreEngine<ActivitiesState> by lazy { (application as App).core }
@@ -53,18 +54,13 @@ class FragmentStackActivity : BaseFragmentActivity<StackType.Table<BaseFragment>
                 StackRoute::switchFragmentAtStackActivity)
                 .withParams(this, "page3")
                 .start(core)
-                .unsafeRunAsync { Logger.d("FragmentStackActivity", it.toString()) }
+                .subscribe { Logger.d("FragmentStackActivity", it.toString()) }
         }
     }
 
     override fun onBackPressed() {
-        val result = StackRoute.run {
-            finishFragmentForTable<BaseFragment>(null) runAtA this@FragmentStackActivity
-        }.start(core).unsafeRunSync()
-
-        println("onBackPressed | result=$result")
-
-        if (result is Success && result.t.b == FinishResult.FinishParent)
-            super.onBackPressed()
+        StackRoute.routeOnBackPress(this).start(core).unsafeRunAsync { result ->
+            println("onBackPressed | result=$result")
+        }
     }
 }

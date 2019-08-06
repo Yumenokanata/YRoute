@@ -23,9 +23,9 @@ data class ActivityData(val activity: Activity,
                         val extra: Map<String, Any> = emptyMap(),
                         val animData: AnimData?)
 
-class RxActivityBuilder private constructor(clazz: Class<out Activity>) : ActivityBuilder<Activity>(clazz) {
+class RxActivityBuilder<A> private constructor(clazz: Class<out A>) : ActivityBuilder<A>(clazz) {
     companion object {
-        fun <T> create(clazz: Class<T>): RxActivityBuilder where T : Activity, T : ActivityLifecycleOwner =
+        fun <T> create(clazz: Class<T>): RxActivityBuilder<T> where T : Activity, T : ActivityLifecycleOwner =
             RxActivityBuilder(clazz)
     }
 }
@@ -120,7 +120,7 @@ object ActivitiesRoute {
             }
         }
 
-    fun startActivityForRx(builder: RxActivityBuilder): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+    fun <A> startActivityForRx(builder: RxActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
         routeF { vd, cxt ->
             binding {
                 val intent = builder.createIntent(cxt)
@@ -210,11 +210,15 @@ object ActivitiesRoute {
     fun <A : Activity> routeStartActivity(builder: ActivityBuilder<A>): YRoute<ActivitiesState, A> =
         createActivityIntent<Activity, ActivitiesState>(builder).flatMapR { startActivity(it).ofType(type<A>()) }
 
-    fun routeStartActivityForResult(builder: ActivityBuilder<Activity>, requestCode: Int): YRoute<ActivitiesState, Activity> =
-        createActivityIntent<Activity, ActivitiesState>(builder)
+    fun <A : Activity> routeStartActivityForResult(builder: ActivityBuilder<A>, requestCode: Int): YRoute<ActivitiesState, A> =
+        createActivityIntent<A, ActivitiesState>(builder)
             .flatMapR { intent -> startActivityForResult(intent, requestCode) }
+                .mapResult {
+                    @Suppress("UNCHECKED_CAST")
+                    it as A
+                }
 
-    fun routeStartActivityForRx(builder: RxActivityBuilder): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+    fun <A> routeStartActivityForRx(builder: RxActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
             startActivityForRx(builder)
 
     val routeFinishTop: YRoute<ActivitiesState, Unit> = backActivity

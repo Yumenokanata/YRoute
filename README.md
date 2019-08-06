@@ -75,8 +75,8 @@ class App : Application() {
 
         MainCoreEngine.apply {
             core = create(this@App, ActivitiesState(emptyList())).unsafeRunSync()
-            core.start().subscribe()
-            core.bindApp().subscribe()
+            core.start().catchSubscribe()
+            core.bindApp().catchSubscribe()
         }
     }
 }
@@ -84,7 +84,7 @@ class App : Application() {
 // 使用
 StackRoute
     .startStackFragActivity(ActivityBuilder(FragmentStackActivity::class.java))
-    .start(core).toSingle().subscribe()
+    .start(core).toSingle().catchSubscribe()
 
 ActivitiesRoute.run {
     createActivityIntent<BaseActivity, ActivitiesState>(ActivityBuilder(OtherActivity::class.java))
@@ -104,7 +104,7 @@ StackRoute.run {
         Toast.makeText(activity,
                 "YResult from Other fragment: \nresultCode=${it.a}, data=${it.b?.getString("msg")}",
                 Toast.LENGTH_LONG).show()
-    }.subscribe()
+    }.catchSubscribe()
 })
 ```
 
@@ -337,7 +337,7 @@ interface CoreEngine<S> {
 ```kotlin
 MainCoreEngine.apply {
     core = create(this@App, ActivitiesState(emptyList())).unsafeRunSync()
-    core.start().subscribe()
+    core.start().catchSubscribe()
 }
 ```
 
