@@ -29,8 +29,10 @@ Functional Route Util for Android
 4. ~~与Activity相同的startFragment和finishFragment操作方式~~
 5. ~~startFragmentForResult（onFragmentResult回调方法）~~
 6. ~~startFragmentForRx和startActivityForRx~~
-7. Fragment和Activity的启动和退出动画控制
-8. onShow和onHide回调方法
+7. ~~Fragment和Activity的启动和退出动画控制~~
+8. ~~onShow和onHide回调方法~~
+
+**Tips(2019/08): 现已完成对[FragmentManager](https://github.com/Yumenokanata/FragmentManager)库主要功能的90%覆盖**
 
 当然相比FragmentManager功能还有一些已经完成的额外功能：
 1. StackActivity分为了Single和Table两种，支持单栈和多栈的不同模式
@@ -107,6 +109,13 @@ StackRoute.run {
     }.catchSubscribe()
 })
 ```
+
+## [FragmentManager](https://github.com/Yumenokanata/FragmentManager)库的替代使用
+
+可参照[sample包](https://github.com/Yumenokanata/YRoute/tree/master/sample/src/main/java/indi/yume/tools/yroute/sample/fragmentmanager)下的示例使用, 主要替代类为:
+
+1. BaseFragmentManagerActivity -> indi.yume.tools.yroute.fragmentmanager.BaseTableActivity<F> 和 BaseSingleActivity<F>
+2. BaseManagerFragment -> indi.yume.tools.yroute.fragmentmanager.BaseManagerFragment
 
 ## 详细使用方法
 
