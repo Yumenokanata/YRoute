@@ -636,9 +636,13 @@ object StackRoute {
                 IO {
                     for (i in stackState.list.size - 1 downTo 0) {
                         val f = stackState.list[i]
-                        if (f.t.isVisible) vd.ft.hide(f.t)
+                        if (f.t.isVisible) {
+                            vd.ft.hide(f.t)
+                            f.t.onHide(OnHideMode.OnStartNew)
+                        }
                     }
                     vd.ft.add(vd.fragmentId, fragment)
+                    fragment.onShow(OnShowMode.OnCreate)
 
                     vd.copy(state = newStack) toT
                             YResult.success(fragment)
@@ -670,7 +674,11 @@ object StackRoute {
 
                     !IO {
                         vd.ft.add(vd.fragmentId, fragment)
-                        if (backF != null && backF.isVisible) vd.ft.hide(backF)
+                        fragment.onShow(OnShowMode.OnCreate)
+                        if (backF != null && backF.isVisible) {
+                            vd.ft.hide(backF)
+                            backF.onHide(OnHideMode.OnStartNew)
+                        }
                     }
 
                     innerState.copy(
@@ -729,8 +737,10 @@ object StackRoute {
 
                     if (backF != null)
                         !vd.fm.putFragWithAnim(animData, vd.fragmentId, backF, fragment)
-                    else
+                    else {
                         !IO { vd.ft.add(vd.fragmentId, fragment) }
+                        fragment.onShow(OnShowMode.OnCreate)
+                    }
 
                     innerState.copy(
                             state = innerState.state.copy(
@@ -776,7 +786,10 @@ object StackRoute {
                     !IO {
                         for (i in currentStack.size - 1 downTo 0) {
                             val f = currentStack[i]
-                            if (f.t.isVisible) vd.ft.hide(f.t)
+                            if (f.t.isVisible) {
+                                vd.ft.hide(f.t)
+                                if (f.t is StackFragment) f.t.onHide(OnHideMode.OnSwitch)
+                            }
                         }
                     }
                 }
@@ -793,6 +806,7 @@ object StackRoute {
                         when (result) {
                             is Success -> !IO {
                                 vd.ft.add(vd.fragmentId, result.t)
+                                if (result.t is StackFragment) result.t.onShow(OnShowMode.OnCreate)
                                 if (silentSwitch) vd.ft.hide(result.t)
 
                                 val newItem = FItem<F>(result.t, CoreID.get(), targetTag, null)
@@ -808,7 +822,10 @@ object StackRoute {
                     } else vd.copy(state = vd.state.copy(current = targetTag to null)) toT YResult.success(null)
                 } else !IO {
                     val item = targetStack.last()
-                    if (!silentSwitch) vd.ft.show(item.t)
+                    if (!silentSwitch) {
+                        vd.ft.show(item.t)
+                        if (item.t is StackFragment) item.t.onShow(OnShowMode.OnSwitch)
+                    }
 
                     vd.copy(state = vd.state.copy(current = targetTag to item)) toT Success(item.t)
                 }
@@ -886,7 +903,10 @@ object StackRoute {
 
                 !IO {
                     state.ft.remove(targetItem.t)
-                    if (backItem != null) state.ft.show(backItem.t)
+                    if (backItem != null) {
+                        state.ft.show(backItem.t)
+                        if (backItem.t is StackFragment) backItem.t.onShow(OnShowMode.OnBack)
+                    }
                 }
 
                 if (targetItem.t is StackFragment && backItem != null && backItem.t is StackFragment)
@@ -925,7 +945,10 @@ object StackRoute {
 
                     !IO {
                         state.ft.remove(targetF.t)
-                        if (backF != null) state.ft.show(backF.t)
+                        if (backF != null) {
+                            state.ft.show(backF.t)
+                            if (backF.t is StackFragment) backF.t.onShow(OnShowMode.OnBack)
+                        }
                     }
 
                     if (targetF.t is StackFragment && backF != null && backF.t is StackFragment)
@@ -1090,6 +1113,7 @@ object StackRoute {
                             when (result) {
                                 is Success -> !IO {
                                     state.ft.add(state.fragmentId, result.t)
+                                    if (result.t is StackFragment) result.t.onShow(OnShowMode.OnCreate)
 
                                     val newItem = FItem<F>(result.t, CoreID.get(), currentTag, null)
                                     state.copy(state = stack.copy(

@@ -113,14 +113,12 @@ sealed class FragmentLifeEvent {
 }
 
 sealed class OnHideMode {
-    object OnPause : OnHideMode()
     object OnStartNew : OnHideMode()
     object OnSwitch : OnHideMode()
     object OnStartNewAfterAnim : OnHideMode()
 }
 
 sealed class OnShowMode {
-    object OnResume : OnShowMode()
     object OnBack : OnShowMode()
     object OnSwitch : OnShowMode()
     object OnCreate : OnShowMode()
@@ -282,6 +280,5 @@ fun startAnim(@AnimRes animRes: Int, target: View?): Completable = if (target ==
         override fun onAnimationStart(animation: Animation?) {}
 
     })
-    println("--------------> thread=${Thread.currentThread().name}")
     target.startAnimation(animation)
 }

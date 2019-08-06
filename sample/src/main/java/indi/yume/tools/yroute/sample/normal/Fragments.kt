@@ -21,6 +21,12 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
 
     override var controller: FragController = FragController.defaultController()
 
+    init {
+        bindFragmentLife()
+                .doOnNext { Logger.d("---> ${this::class.java.simpleName}", it.toString()) }
+                .catchSubscribe()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         makeState(FragmentLifeEvent.OnCreate(this, savedInstanceState))
@@ -60,12 +66,6 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
 
 class FragmentPage1 : BaseFragment() {
     val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
-
-    init {
-        bindFragmentLife()
-            .doOnNext { Logger.d("FragmentPage1", it.toString()) }
-            .catchSubscribe()
-    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         super.onCreateView(inflater, container, savedInstanceState)
