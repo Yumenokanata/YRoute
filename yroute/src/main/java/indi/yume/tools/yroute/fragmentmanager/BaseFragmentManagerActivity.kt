@@ -4,21 +4,20 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import arrow.core.Tuple2
 import arrow.effects.IO
 import arrow.effects.extensions.io.monad.flatten
 import indi.yume.tools.yroute.*
-import indi.yume.tools.yroute.RouteConfig.globalDefaultAnimData
-import indi.yume.tools.yroute.StackRoute.runAtA
+import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.CoreEngine
 import indi.yume.tools.yroute.datatype.flatMapR
 import indi.yume.tools.yroute.datatype.start
-import io.reactivex.Single
 import io.reactivex.subjects.Subject
 
-abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : FragmentActivity(), ActivityLifecycleOwner, StackHost<F, T>
+abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActivity(), ActivityLifecycleOwner, StackHost<F, T>
         where F : Fragment, F : StackFragment {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
 

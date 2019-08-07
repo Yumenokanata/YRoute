@@ -4,11 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import indi.yume.tools.yroute.ActivityLifeEvent
 import indi.yume.tools.yroute.ActivityLifecycleOwner
 import io.reactivex.subjects.Subject
 
-abstract class BaseLifeActivity : Activity(), ActivityLifecycleOwner {
+abstract class BaseLifeActivity : AppCompatActivity(), ActivityLifecycleOwner {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
 
     override fun onCreate(savedInstanceState: Bundle?) {

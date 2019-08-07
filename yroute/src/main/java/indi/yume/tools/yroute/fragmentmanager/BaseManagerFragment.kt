@@ -88,7 +88,7 @@ abstract class BaseManagerFragment : Fragment(), StackFragment {
             }.start(core).flattenForYRoute()
 
     fun <F, A, T> startFragmentOnNewActivity(fragIntent: Intent, activityClazz: Class<A>,
-                                             anim: AnimData? = RouteConfig.globalDefaultAnimData): IO<Tuple2<A, F>>
+                                             anim: AnimData? = YRouteConfig.globalDefaultAnimData): IO<Tuple2<A, F>>
             where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
             startFragmentOnNewActivity(
                     ActivityBuilder(activityClazz).withAnimData(anim),

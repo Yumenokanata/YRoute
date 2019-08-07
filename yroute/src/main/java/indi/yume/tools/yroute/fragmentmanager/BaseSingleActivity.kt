@@ -2,11 +2,8 @@ package indi.yume.tools.yroute.fragmentmanager
 
 import androidx.fragment.app.Fragment
 import arrow.effects.IO
-import indi.yume.tools.yroute.StackFragment
-import indi.yume.tools.yroute.StackRoute
-import indi.yume.tools.yroute.StackType
+import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.start
-import indi.yume.tools.yroute.flattenForYRoute
 
 abstract class BaseSingleActivity<F> : BaseFragmentManagerActivity<F, StackType.Single<F>>()
         where F : Fragment, F : StackFragment {

@@ -21,6 +21,7 @@ import arrow.effects.IO
 import arrow.effects.OnCancel
 import arrow.effects.typeclasses.Disposable
 import arrow.optics.Lens
+import arrow.typeclasses.Monoid
 import indi.yume.tools.yroute.datatype.YResult
 import indi.yume.tools.yroute.datatype.Fail
 import indi.yume.tools.yroute.datatype.RouteCxt
@@ -205,29 +206,29 @@ fun <T> IO<T>.toCompletable(callback: (Either<Throwable, T>) -> Unit): Completab
 }
 
 fun Completable.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
-        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+        { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
 fun <T> Single<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
-        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+        { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
 fun <T> Maybe<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
-        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+        { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
 fun <T> Observable<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
-        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+        { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
 fun <T> Flowable<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
-        { }, { if (RouteConfig.showLog) it.printStackTrace() }
+        { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
 fun <T> IO<T>.catchSubscribe(): Disposable = unsafeRunAsyncCancellable {
     when(it) {
         is Either.Left -> {
-            if (RouteConfig.showLog) it.a.printStackTrace()
+            if (YRouteConfig.showLog) it.a.printStackTrace()
         }
         is Either.Right -> {}
     }
@@ -241,6 +242,13 @@ fun <T> IO<T>.subscribe(onError: (Throwable) -> Unit = {},
     }
 }
 
+fun Unit.monoid(): Monoid<Unit> = UnitMonoid
+
+val UnitMonoid = object : Monoid<Unit> {
+    override fun empty() = Unit
+
+    override fun Unit.combine(b: Unit) = Unit
+}
 
 fun RouteCxt.checkComponentClass(intent: Intent, obj: Any): Boolean =
     intent.component?.run {

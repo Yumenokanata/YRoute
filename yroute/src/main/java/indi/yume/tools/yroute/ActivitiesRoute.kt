@@ -10,7 +10,7 @@ import arrow.core.andThen
 import arrow.core.toT
 import arrow.effects.IO
 import arrow.effects.extensions.io.monadDefer.binding
-import indi.yume.tools.yroute.RouteConfig.globalDefaultAnimData
+import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
 import io.reactivex.Completable
 import io.reactivex.Single

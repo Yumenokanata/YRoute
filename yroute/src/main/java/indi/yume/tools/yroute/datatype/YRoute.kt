@@ -21,6 +21,7 @@ import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 
@@ -308,7 +309,7 @@ fun <S> ContainerEngine.createBranch(initState: S): SubCoreEngine<S> {
 class MainCoreEngine<S>(val state: MVar<ForIO, S>,
                         override val routeCxt: RouteCxt
 ): CoreEngine<S> {
-    private val streamSubject: Subject<Completable> = PublishSubject.create()
+    val streamSubject: Subject<Completable> = PublishSubject.create()
 
     @CheckResult
     override fun runIO(io: IO<*>): IO<Unit> = IO { streamSubject.onNext(io.toSingle().ignoreElement()) }
@@ -374,7 +375,10 @@ class MainCoreEngine<S>(val state: MVar<ForIO, S>,
     @CheckResult
     fun start(): Completable = streamSubject
         .concatMapCompletable { completable ->
-            completable.doOnError { it.printStackTrace() }
+            val timeout = YRouteConfig.taskRunnerTimeout
+            if (timeout == null) completable
+            else completable.timeout(timeout, TimeUnit.MILLISECONDS)
+                .doOnError { it.printStackTrace() }
                 .onErrorComplete()
                 .doFinally {
                     Logger.d("concatMapCompletable", "event over")
