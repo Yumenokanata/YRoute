@@ -1,5 +1,6 @@
 package indi.yume.tools.yroute.sample.fragmentmanager
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
@@ -34,12 +35,13 @@ class SupportMainActivity : BaseLifeActivity() {
         }
 
         findViewById<Button>(R.id.fragment_stack_button).setOnClickListener {
-            StackRoute
-                .startStackFragActivity(ActivityBuilder(FragmentStackActivity::class.java))
-                .start(core)
-                .unsafeRunAsync { result ->
-                    Logger.d("FragmentStackActivity", result.toString())
-                }
+//            StackRoute
+//                .startStackFragActivity(ActivityBuilder(FragmentStackActivity::class.java))
+//                .start(core)
+//                .unsafeRunAsync { result ->
+//                    Logger.d("FragmentStackActivity", result.toString())
+//                }
+            startActivity(Intent(this, FragmentStackActivity::class.java))
         }
 
         findViewById<Button>(R.id.fragment_single_stack_button).setOnClickListener {

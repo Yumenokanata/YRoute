@@ -48,6 +48,42 @@ fun ActivityData.getStackExtra(): StackActivityExtraState<*, *>? =
 fun ActivityData.putStackExtra(extraState: StackActivityExtraState<*, *>): ActivityData =
     copy(extra = extra + (EXTRA_KEY__STACK_ACTIVITY_DATA to extraState))
 
+fun <F, T> ActivityData.getStackExtraOrDefault(host: StackHost<F, T>? = null): StackActivityExtraState<F, T>?
+        where T : StackType<F> {
+    val extra = getStackExtra()
+
+    return if (extra != null) extra as StackActivityExtraState<F, T>
+    else getDefaultStackExtra(host)
+}
+
+fun <F, T> ActivityData.getDefaultStackExtra(host: StackHost<F, T>? = null): StackActivityExtraState<F, T>?
+        where T : StackType<F> {
+    return if (activity is FragmentActivity && host != null)
+        StackActivityExtraState(
+                activity = activity,
+                state = StackFragState(
+                        host = host,
+                        stack = host.initStack,
+                        fm = activity.supportFragmentManager
+                ))
+    else if (activity is FragmentActivity && activity is StackHost<*, *>) {
+        val actHost = activity as StackHost<F, T>
+        StackActivityExtraState(
+                activity = activity,
+                state = StackFragState(
+                        host = actHost,
+                        stack = actHost.initStack,
+                        fm = activity.supportFragmentManager
+                ))
+    } else null
+}
+
+fun ActivitiesState.putStackExtraToActState(host: StackHost<*, *>, extra: StackActivityExtraState<*, *>): ActivitiesState =
+        copy(list = list.map {
+            if (it.hashTag == host.controller.hashTag)
+                it.putStackExtra(extra)
+            else it
+        })
 
 data class StackActivityExtraState<F, Type : StackType<F>>(
     val activity: FragmentActivity,
@@ -254,28 +290,13 @@ object StackRoute {
             : YRoute<ActivitiesState, Lens<ActivitiesState, StackActivityExtraState<F, T>?>> =
         routeF { state, routeCxt ->
             val item = state.list.firstOrNull { it.hashTag == host.controller.hashTag }
-            val extra = item?.getStackExtra()
+            val extra = item?.getStackExtraOrDefault(host)
 
             val result: Tuple2<ActivitiesState, YResult<Lens<ActivitiesState, StackActivityExtraState<F, T>?>>> =
                 if (item == null || extra == null) {
                     state toT Fail("Can not find target StackFragState: target=$host, but stack is ${state.list.joinToString()}")
-                } else if (item.activity is FragmentActivity) {
-                    val fAct = item.activity as FragmentActivity
-                    val stackData = StackActivityExtraState(
-                        activity = fAct,
-                        state = StackFragState(
-                            host = host,
-                            stack = host.initStack,
-                            fm = fAct.supportFragmentManager
-                        )
-                    )
-                    state.copy(list = state.list.map {
-                        if (it.hashTag == host.controller.hashTag)
-                            item.putStackExtra(extra)
-                        else it
-                    }) toT Success(stackActivityLens(host))
                 } else {
-                    state toT Success(stackActivityLens(host))
+                    state.putStackExtraToActState(host, extra) toT Success(stackActivityLens(host))
                 }
 
             IO.just(result)
@@ -388,17 +409,13 @@ object StackRoute {
         routeF { vd, cxt ->
             IO {
                 val item = vd.list.firstOrNull { it.hashTag == host.controller.hashTag }
-                val extra = item?.getStackExtra()
+                val extra = item?.getStackExtraOrDefault(host)
 
-                vd toT if (extra != null) {
+                if (extra != null) {
                     val stackActivityData = item as? StackActivityExtraState<F, T>
 
-                    if (stackActivityData != null) {
-                        Success(stackActivityData)
-                    } else {
-                        Success(null)
-                    }
-                } else Success(null)
+                    vd.putStackExtraToActState(host, extra) toT Success(stackActivityData)
+                } else vd toT Success(null)
             }
         }
 
@@ -522,10 +539,9 @@ object StackRoute {
 
     fun <F : Fragment> switchFragmentAtStackActivity(host: StackHost<F, StackType.Table<F>>, tag: TableTag): YRoute<ActivitiesState, F?> =
         switchStackAtTable<F>(tag)
-            .mapInner(lens = stackTypeLens<F, StackType.Table<F>>())
-            .stackTranIO<F, StackType.Table<F>, F?>() // YRoute<StackFragState<F, StackType.Table<F>>, F?>
-            .stateNullable()
-            .mapState(stackActivityLens(host).composeNonNull(stackStateForActivityLens<F, StackType.Table<F>>()))
+                .mapInner(lens = stackTypeLens<F, StackType.Table<F>>())
+                .stackTranIO<F, StackType.Table<F>, F?>() // YRoute<StackFragState<F, StackType.Table<F>>, F?>
+                .runAtA(host)
 
     fun <S, F : Fragment> createFragment(builder: FragmentBuilder<F>): YRoute<S, F> =
         routeF { vd, cxt ->
@@ -1234,19 +1250,38 @@ object StackRoute {
             : YRoute<ActivitiesState, StackFragState<F, T>>
             where F : Fragment, T : StackType<F> =
             routeF { actState, routeCxt ->
-                val lens = stackActivityLens(host).composeNonNull(stackStateForActivityLens<F, T>())
+                binding {
+                    val (newState, lens) = !routeGetStackLensFromActivity(host).runRoute(actState, routeCxt)
 
-                val target = lens.get(actState)
+                    when (lens) {
+                        is Fail -> newState toT lens
+                        is Success -> {
+                            val target = lens.t.get(actState)
 
-                IO.just(actState toT
-                        if (target != null) Success(target) else Fail("Can not found stack at target activity: $host"))
+                            newState toT
+                                    if (target != null) Success(target) else Fail("Can not found stack at target activity: $host")
+                        }
+                    }
+                }
             }
 
     fun <F, T> routeGetStackLensFromActivity(host: StackHost<F, T>)
             : YRoute<ActivitiesState, Lens<ActivitiesState, StackFragState<F, T>?>>
             where F : Fragment, T : StackType<F> =
             routeF { actState, routeCxt ->
-                val lens = stackActivityLens(host).composeNonNull(stackStateForActivityLens<F, T>())
+                val extraLens = stackActivityLens(host)
+                val fragStateLens = stackStateForActivityLens<F, T>()
+                val lens = extraLens.composeNonNull(fragStateLens)
+
+                val extra = extraLens.get(actState)
+
+                if (extra == null) {
+                    val item = actState.list.firstOrNull { it.hashTag == host.controller.hashTag }
+                    val defaultExtra = item?.getDefaultStackExtra(host)
+                    if (defaultExtra != null)
+                        return@routeF IO.just(actState.putStackExtraToActState(host, defaultExtra) toT Success(lens))
+                }
+
                 IO.just(actState toT Success(lens))
             }
 
@@ -1262,8 +1297,7 @@ object StackRoute {
                 } else {
                     @Suppress("UNCHECKED_CAST")
                     val host = activity as StackHost<F, T>
-                    val lens = stackActivityLens(host).composeNonNull(stackStateForActivityLens<F, T>())
-                    IO.just(actState toT Success(lens))
+                    routeGetStackLensFromActivity(host).runRoute(actState, routeCxt)
                 }
             }
 

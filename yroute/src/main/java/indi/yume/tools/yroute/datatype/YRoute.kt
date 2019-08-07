@@ -235,6 +235,8 @@ fun <S1, S2, R1, R2> zipRoute(route1: YRoute<S1, R1>, route2: YRoute<S2, R2>): Y
         }
     }
 
+fun <S> YRoute<S, *>.ignoreResult(): YRoute<S, Unit> = mapResult { Unit }
+
 fun <S, R1, R2> YRoute<S, Tuple2<R1, R2>>.ignoreLeft(): YRoute<S, R2> = mapResult { it.b }
 
 fun <S, R1, R2> YRoute<S, Tuple2<R1, R2>>.ignoreRight(): YRoute<S, R1> = mapResult { it.a }

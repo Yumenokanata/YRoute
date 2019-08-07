@@ -15,7 +15,7 @@ import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
 import io.reactivex.subjects.Subject
 
-abstract class BaseFragment : BaseManagerFragment() {
+abstract class BaseFragment : BaseManagerFragment<BaseFragment>() {
     override val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
 }
 
