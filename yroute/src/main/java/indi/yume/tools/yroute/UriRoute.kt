@@ -24,7 +24,7 @@ object UriRoute {
 }
 
 class RouteNaviBuilder<S>(val host: String) {
-    var routeMap: MutableMap<String, LazyYRoute<S, URI, *>> = emptyMap<String, LazyYRoute<S, URI, *>>().toMutableMap()
+    var routeMap: MutableMap<String, LazyYRoute<S, URI, Any?>> = emptyMap<String, LazyYRoute<S, URI, Any?>>().toMutableMap()
 
     fun <R> putRoute(path: String, route: YRoute<S, R>): RouteNaviBuilder<S> {
         routeMap.put(path, lazyR1 { route.mapResult { it as Any? } })

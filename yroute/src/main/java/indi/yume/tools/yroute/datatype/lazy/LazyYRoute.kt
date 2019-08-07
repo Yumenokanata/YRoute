@@ -36,16 +36,10 @@ fun <S, P1, P2, P3, P4, R> lazyR4(f: (P1, P2, P3, P4) -> YRoute<S, R>): LazyYRou
 
 
 inline fun <S, T, R> route(crossinline f: (S) -> (Tuple2<RouteCxt, T>) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
-    Reader { t ->
-        Id(StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
-        { state -> ReaderT { f(state)(it toT t) } })
-    }
+    Reader { t -> Id(YRoute { s -> { c -> f(s)(c toT t) } }) }
 
 inline fun <S, T, R> routeF(crossinline f: (S, RouteCxt, T) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
-    Reader { t ->
-        Id(StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
-        { state -> ReaderT { cxt -> f(state, cxt, t) } })
-    }
+        Reader { t -> Id(YRoute { s -> { c -> f(s, c, t) } }) }
 
 fun <S, T, R> LazyYRoute<S, T, R>.runRoute(state: S, cxt: RouteCxt, t: T): IO<Tuple2<S, YResult<R>>> =
     this.runId(t).runRoute(state, cxt)

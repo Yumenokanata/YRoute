@@ -15,6 +15,7 @@ import arrow.effects.extensions.io.async.async
 import arrow.effects.extensions.io.monad.monad
 import arrow.effects.extensions.io.monadDefer.binding
 import arrow.effects.fix
+import arrow.higherkind
 import arrow.optics.Lens
 import indi.yume.tools.yroute.*
 import io.reactivex.Completable
@@ -26,7 +27,8 @@ import kotlin.random.Random
 
 
 //<editor-fold desc="YResult<T>">
-sealed class YResult<out T> {
+@higherkind
+sealed class YResult<out T> : YResultOf<T> {
     companion object {
         fun <T> success(t: T): YResult<T> = Success(t)
 
@@ -51,19 +53,20 @@ fun <T> YResult<T>.toEither(): Either<Fail, T> = when (this) {
 
 
 //<editor-fold desc="YRoute">
-typealias YRoute<S, R> = StateT<ReaderTPartialOf<ForIO, RouteCxt>, S, YResult<R>>
+@higherkind
+data class YRoute<S, R>(val run: (S) -> (RouteCxt) -> IO<Tuple2<S, YResult<R>>>) : YRouteOf<S, R> {
+    companion object
+}
 
 
-inline fun <S, R> route(crossinline f: (S) -> (RouteCxt) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
-    StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
-    { state -> ReaderT { f(state)(it) } }
+fun <S, R> route(f: (S) -> (RouteCxt) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
+        YRoute(f)
 
 inline fun <S, R> routeF(crossinline f: (S, RouteCxt) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
-    StateT(ReaderT.monad<ForIO, RouteCxt>(IO.monad()))
-    { state -> ReaderT { cxt -> f(state, cxt) } }
+        YRoute { s -> { c -> f(s, c) } }
 
 fun <S, R> YRoute<S, R>.runRoute(state: S, cxt: RouteCxt): IO<Tuple2<S, YResult<R>>> =
-    this.run(ReaderT.monad(IO.monad()), state).fix().run(cxt).fix()
+    this.run(state)(cxt)
 
 fun <S> routeId(): YRoute<S, Unit> = routeF { s, c -> IO.just(s toT Success(Unit)) }
 
