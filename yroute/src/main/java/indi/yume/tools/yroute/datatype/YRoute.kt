@@ -99,7 +99,7 @@ fun <S1, S2, R> YRoute<S1, Lens<S1, S2>>.composeState(route: YRoute<S2, R>): YRo
             when (lensResult) {
                 is Fail -> innerState1 toT lensResult
                 is Success -> {
-                    val state2 = lensResult.t.get(state1)
+                    val state2 = lensResult.t.get(innerState1)
                     val (newState2, result) = !route.runRoute(state2, cxt)
                     val newState1 = lensResult.t.set(innerState1, newState2)
                     newState1 toT result

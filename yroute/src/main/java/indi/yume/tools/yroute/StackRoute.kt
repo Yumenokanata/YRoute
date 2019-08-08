@@ -937,10 +937,10 @@ object StackRoute {
                         state.ft.show(backItem.t)
                         if (backItem.t is StackFragment) yield(IO { backItem.t.onShow(OnShowMode.OnBack) })
                     }
-
-                    if (targetItem.t is StackFragment && backItem != null && backItem.t is StackFragment)
-                        yield(dealFinishForResult(targetItem.t, backItem.t))
                 }.toList() }
+
+                if (targetItem.t is StackFragment && backItem != null && backItem.t is StackFragment)
+                    !dealFinishForResult(targetItem.t, backItem.t)
 
                 newState toT stackTranResult(cbIOs, Success(
                         target toT when {
@@ -979,10 +979,10 @@ object StackRoute {
                             state.ft.show(backF.t)
                             if (backF.t is StackFragment) yield(IO { backF.t.onShow(OnShowMode.OnBack) })
                         }
-
-                        if (targetF.t is StackFragment && backF != null && backF.t is StackFragment)
-                            yield(dealFinishForResult(targetF.t, backF.t))
                     }.toList() }
+
+                    if (targetF.t is StackFragment && backF != null && backF.t is StackFragment)
+                        !dealFinishForResult(targetF.t, backF.t)
 
                     newState toT stackTranResult(cbIOs, Success(
                             targetItem toT if (newState.state.table[targetTag].isNullOrEmpty()) FinishResult.FinishParent
@@ -1007,10 +1007,11 @@ object StackRoute {
                     is Either.Right -> result.b
                 }
                 val (backItem, targetItem) = target
+                Logger.d("finishFragmentAtSingle", "target=$target")
 
                 if (backItem == null) {
                     // Do not finish top fragment
-                    return@routeF IO.just(state toT stackTranResult(Success(null toT FinishResult.FinishParent)))
+                    return@routeF IO.just(state toT stackTranResult(Success(target toT FinishResult.FinishParent)))
                 }
 
                 binding {
@@ -1020,16 +1021,16 @@ object StackRoute {
                     !dealFinishForResult(targetItem.t, backItem.t)
 
                     val animData = targetItem.anim
-                    val cbIOs = listOf(dealFinishForResult(targetItem.t, backItem.t)) + if (animData == null) {
+                    val cbIOs = if (animData == null) {
                         // NoAnim
                         !IO {
                             state.ft.remove(targetItem.t)
                             state.ft.show(backItem.t)
                         }
-                        IO { backItem.t.onShow(OnShowMode.OnBack) }
+                        listOf(IO { backItem.t.onShow(OnShowMode.OnBack) })
                     } else {
                         !state.fm.popFragWithAnim(animData, backItem.t, targetItem.t)
-                        IO.unit
+                        emptyList()
                     }
 
                     newState toT stackTranResult(cbIOs, Success(
@@ -1069,17 +1070,19 @@ object StackRoute {
                                     ?: emptyList())),
                             current = if (stack.current?.second?.hashTag == targetF.hashTag) backF?.let { targetTag to it } else stack.current))
 
+                    !dealFinishForResult(targetF.t, backF.t)
+
                     val animData = targetF.anim
-                    val cbIOs = listOf(dealFinishForResult(targetF.t, backF.t)) + if (animData == null) {
+                    val cbIOs = if (animData == null) {
                         // NoAnim
                         !IO {
                             state.ft.remove(targetF.t)
                             state.ft.show(backF.t)
                         }
-                        IO { backF.t.onShow(OnShowMode.OnBack) }
+                        listOf(IO { backF.t.onShow(OnShowMode.OnBack) })
                     } else {
                         !state.fm.popFragWithAnim(animData, backF.t, targetF.t)
-                        IO.unit
+                        emptyList()
                     }
 
                     newState toT stackTranResult(cbIOs, Success(
@@ -1174,11 +1177,10 @@ object StackRoute {
 
                     val topF = stack.list.first()
                     val topBackF = stack.list.getOrNull(1)?.t
+                    if (topBackF != null && topBackF is StackFragment && topF.t is StackFragment)
+                        !dealFinishForResult(topBackF, topF.t)
 
-                    val cbIOs = sequence {
-                        if (topBackF != null && topBackF is StackFragment && topF.t is StackFragment)
-                            yield(dealFinishForResult(topBackF, topF.t))
-                    }.toList()
+                    val cbIOs = emptyList<IO<Unit>>()
 
                     state.copy(state = stack.copy(listOf(topF))) toT stackTranResult(cbIOs, Success(true))
                 }
@@ -1202,11 +1204,10 @@ object StackRoute {
 
                     val topF = targetList.first()
                     val topBackF = targetList.getOrNull(1)?.t
+                    if (topBackF != null && topBackF is StackFragment && topF.t is StackFragment)
+                        !dealFinishForResult(topBackF, topF.t)
 
-                    val cbIOs = sequence {
-                        if (topBackF != null && topBackF is StackFragment && topF.t is StackFragment)
-                            yield(dealFinishForResult(topBackF, topF.t))
-                    }.toList()
+                    val cbIOs = emptyList<IO<Unit>>()
 
                     state.copy(state = stack.copy(
                             table = stack.table + (currentTag to listOf(topF)),
@@ -1221,12 +1222,10 @@ object StackRoute {
                 val stack = activity.initStack
                 when (stack) {
                     is StackType.Single<*> -> startFragmentForSingle(fragBuilder)
-                            .mapStateNullable(lens = stackActivityLens<F, StackType.Single<F>>(activity as StackHost<F, StackType.Single<F>>)
-                                    .composeNonNull(stackStateForActivityLens<F, StackType.Single<F>>()))
+                            .runAtA(activity as StackHost<F, StackType.Single<F>>)
                             .mapResult { f -> (activity toT f) as Tuple2<A, F> }
                     is StackType.Table<*> -> startFragmentForTable(fragBuilder)
-                            .mapStateNullable(lens = stackActivityLens<F, StackType.Table<F>>(activity as StackHost<F, StackType.Table<F>>)
-                                    .composeNonNull(stackStateForActivityLens<F, StackType.Table<F>>()))
+                            .runAtA(activity as StackHost<F, StackType.Table<F>>)
                             .mapResult { f -> (activity toT f) as Tuple2<A, F> }
                     else -> routeFail("Unreachable")
                 }
@@ -1276,7 +1275,7 @@ object StackRoute {
                 val extra = extraLens.get(actState)
 
                 if (extra == null) {
-                    val item = actState.list.firstOrNull { it.hashTag == host.controller.hashTag }
+                    val item = actState.list.firstOrNull { it.activity === host || it.hashTag == host.controller.hashTag }
                     val defaultExtra = item?.getDefaultStackExtra(host)
                     if (defaultExtra != null)
                         return@routeF IO.just(actState.putStackExtraToActState(host, defaultExtra) toT Success(lens))
@@ -1459,7 +1458,7 @@ object StackRoute {
     fun <S, F> YRoute<S, Tuple2<Either<SingleTarget<F>?, TableTarget<F>?>, FinishResult>>.mapFinishResult(): YRoute<S, Tuple2<F?, FinishResult>> =
             mapResult { (target, result) ->
                 when (target) {
-                    is Either.Left -> target.a?.backF?.t
+                    is Either.Left -> target.a?.target?.t
                     is Either.Right -> target.b?.target?.t
                 } toT result
             }
@@ -1473,12 +1472,10 @@ object StackRoute {
                         val stack = activity.initStack
                         when (stack) {
                             is StackType.Single<*> -> startFragmentForSingle(fragBuilder)
-                                    .mapStateNullable(lens = stackActivityLens<F, StackType.Single<F>>(activity as StackHost<F, StackType.Single<F>>)
-                                            .composeNonNull(stackStateForActivityLens<F, StackType.Single<F>>()))
+                                    .runAtA(activity as StackHost<F, StackType.Single<F>>)
                                     .mapResult { f -> (activity toT f) as Tuple2<A, F> }
                             is StackType.Table<*> -> startFragmentForTable(fragBuilder)
-                                    .mapStateNullable(lens = stackActivityLens<F, StackType.Table<F>>(activity as StackHost<F, StackType.Table<F>>)
-                                            .composeNonNull(stackStateForActivityLens<F, StackType.Table<F>>()))
+                                    .runAtA(activity as StackHost<F, StackType.Table<F>>)
                                     .mapResult { f -> (activity toT f) as Tuple2<A, F> }
                             else -> routeFail("Unreachable")
                         }
@@ -1491,8 +1488,7 @@ object StackRoute {
             routeStartStackActivity(activityBuilder.animDataOrDefault(fragBuilder.animData))
                     .flatMapR { activity ->
                         startFragmentForSingle(fragBuilder)
-                                .mapStateNullable(lens = stackActivityLens<F, StackType.Single<F>>(activity)
-                                        .composeNonNull(stackStateForActivityLens<F, StackType.Single<F>>()))
+                                .runAtA(activity)
                                 .mapResult { f -> activity toT f }
                     }
 
@@ -1503,8 +1499,7 @@ object StackRoute {
             routeStartStackActivity(activityBuilder.animDataOrDefault(fragBuilder.animData))
                     .flatMapR { activity ->
                         startFragmentForTable(fragBuilder)
-                                .mapStateNullable(lens = stackActivityLens<F, StackType.Table<F>>(activity)
-                                        .composeNonNull(stackStateForActivityLens<F, StackType.Table<F>>()))
+                                .runAtA(activity)
                                 .mapResult { f -> activity toT f }
                     }
 
