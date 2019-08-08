@@ -78,7 +78,7 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
 
     fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): IO<Tuple2<Int, Bundle?>> =
             ActivitiesRoute.routeStartActivityForRx(builder).start(core).flattenForYRoute()
-                    .map { it.toIO() }.flatten()
+                    .map { it.b.toIO() }.flatten()
 
     fun startFragmentForRx(builder: FragmentBuilder<F>): IO<Tuple2<Int, Bundle?>> =
             StackRoute.run {

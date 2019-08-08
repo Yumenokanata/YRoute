@@ -31,7 +31,7 @@ class NormalMainActivity : BaseLifeActivity() {
             }
                 .start(core).flattenForYRoute().unsafeAsyncRunDefault({ result ->
                         Logger.d("MainActivity", result.toString())
-                        result.doOnSuccess { (resultCode, data) ->
+                        result.b.doOnSuccess { (resultCode, data) ->
 
                         }
                     })

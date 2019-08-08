@@ -123,7 +123,7 @@ object ActivitiesRoute {
             }
         }
 
-    fun <A> startActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+    fun <A> startActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Tuple2<A, Single<Tuple2<Int, Bundle?>>>> =
         routeF { vd, cxt ->
             binding {
                 val intent = builder.createIntent(cxt)
@@ -145,7 +145,7 @@ object ActivitiesRoute {
                     val newState = vd.copy(list = vd.list + ActivityData(activity, CoreID.get(), animData = animData))
 
                     newState toT if (activity is ActivityLifecycleOwner && builder.clazz.isInstance(activity)) {
-                        Success(activity.bindActivityLife().ofType(ActivityLifeEvent.OnActivityResult::class.java)
+                        Success((activity as A) toT activity.bindActivityLife().ofType(ActivityLifeEvent.OnActivityResult::class.java)
                             .filter { it.requestCode == requestCode }
                             .firstOrError()
                             .map { it.resultCode toT it.data?.extras })
@@ -222,7 +222,7 @@ object ActivitiesRoute {
                     it as A
                 }
 
-    fun <A> routeStartActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+    fun <A> routeStartActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Tuple2<A, Single<Tuple2<Int, Bundle?>>>> =
             startActivityForRx(builder)
 
     val routeFinishTop: YRoute<ActivitiesState, Unit> = backActivity
