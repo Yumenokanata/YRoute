@@ -1,10 +1,14 @@
 package indi.yume.tools.yroute.sample.normal
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
+import arrow.core.Either
 import indi.yume.tools.yroute.*
+import indi.yume.tools.yroute.StackRoute.runAtA
 import indi.yume.tools.yroute.datatype.CoreEngine
 import indi.yume.tools.yroute.datatype.flatMapR
 import indi.yume.tools.yroute.datatype.start
@@ -23,12 +27,14 @@ class NormalMainActivity : BaseLifeActivity() {
         findViewById<Button>(R.id.new_activity_button).setOnClickListener {
             ActivitiesRoute.run {
                 createActivityIntent<BaseLifeActivity, ActivitiesState>(ActivityBuilder(OtherActivity::class.java))
-                    .flatMapR { startActivityForResult(it, 1) }
+                    .flatMapR { startActivityForRx(ActivityBuilder<OtherActivity>(it)) }
             }
-                .start(core)
-                .unsafeRunAsync { result ->
-                    Logger.d("MainActivity", result.toString())
-                }
+                .start(core).flattenForYRoute().unsafeAsyncRunDefault({ result ->
+                        Logger.d("MainActivity", result.toString())
+                        result.doOnSuccess { (resultCode, data) ->
+
+                        }
+                    })
 //            findViewById<TextView>(R.id.text_view).setText("hash: ${this.hashCode()}")
         }
 
@@ -44,20 +50,33 @@ class NormalMainActivity : BaseLifeActivity() {
 
         findViewById<Button>(R.id.fragment_single_stack_button).setOnClickListener {
             StackRoute.run {
-                routeStartFragAtNewSingleActivity(
+//                routeStartFragAtNewSingleActivity()
+                val requestCode = 2
+                ActivitiesRoute.routeStartActivityForResult(
                         ActivityBuilder(SingleStackActivity::class.java)
-                                .withAnimData(AnimData()),
-                        FragmentBuilder(FragmentOther::class.java)
-                                .withParam(OtherParam("Msg from MainActivity."))
-                )
-            }.start(core).unsafeRunAsync { result ->
+                        .withAnimData(AnimData()), requestCode)
+                        .flatMapR {
+                            routeStartFragmentForRx<BaseFragment>(FragmentBuilder(FragmentOther::class.java)
+                                    .withParam(OtherParam("Msg from MainActivity."))) runAtA it
+                        }
+            }.start(core).flattenForYRoute().unsafeRunAsync { result ->
                 Logger.d("SingleStackActivity", result.toString())
+                if (result is Either.Right) result.b
+                        .doOnSuccess { (resultCode: Int, data: Bundle?) ->
+                            Toast.makeText(this, "Normal2 on result: $resultCode, data=$data", Toast.LENGTH_SHORT).show()
+                        }
+                        .subscribe()
             }
 //            YRouteNavi.run("route://test/other/fragment?param=this+is+Msg+from+YRouteNavi")
 //                    .unsafeRunAsync { result ->
 //                        Logger.d("SingleStackActivity", result.toString())
 //                    }
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        Toast.makeText(this, "Normal on result: $resultCode, data=$data", Toast.LENGTH_SHORT).show()
     }
 }
 

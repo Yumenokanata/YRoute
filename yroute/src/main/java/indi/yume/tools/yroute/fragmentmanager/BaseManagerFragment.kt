@@ -44,6 +44,10 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
         makeState(FragmentLifeEvent.OnStart(this))
     }
 
+    override fun preSendFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
+        makeState(FragmentLifeEvent.PreSendFragmentResult(this, requestCode, resultCode, data))
+    }
+
     override fun onFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
         makeState(FragmentLifeEvent.OnFragmentResult(this, requestCode, resultCode, data))
     }
@@ -72,7 +76,7 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
     fun <A : Activity> start(builder: ActivityBuilder<A>): IO<A> =
             ActivitiesRoute.routeStartActivity(builder).start(core).flattenForYRoute()
 
-    fun <A : Activity> startActivityForRx(builder: RxActivityBuilder<A>): IO<Tuple2<Int, Bundle?>> =
+    fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): IO<Tuple2<Int, Bundle?>> =
             ActivitiesRoute.routeStartActivityForRx(builder).start(core).flattenForYRoute()
                     .map { it.toIO() }.flatten()
 

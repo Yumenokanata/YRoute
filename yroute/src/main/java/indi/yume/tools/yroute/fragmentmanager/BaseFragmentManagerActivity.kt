@@ -85,7 +85,7 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
     fun <A : Activity> start(builder: ActivityBuilder<A>): IO<A> =
             ActivitiesRoute.routeStartActivity(builder).start(core).flattenForYRoute()
 
-    fun <A : Activity> startActivityForRx(builder: RxActivityBuilder<A>): IO<Tuple2<Int, Bundle?>> =
+    fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): IO<Tuple2<Int, Bundle?>> =
             ActivitiesRoute.routeStartActivityForRx(builder).start(core).flattenForYRoute()
                     .map { it.toIO() }.flatten()
 
@@ -95,14 +95,14 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
             }.start(core).flattenForYRoute()
 
     fun <F, A, T> startFragmentOnNewActivity(fragIntent: Intent, activityClazz: Class<A>,
-                                          anim: AnimData? = globalDefaultAnimData): IO<Tuple2<A, F>>
+                                             anim: AnimData? = globalDefaultAnimData): IO<Tuple2<A, F>>
             where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
             startFragmentOnNewActivity(
                     ActivityBuilder(activityClazz).withAnimData(anim),
                     FragmentBuilder(fragIntent))
 
     fun <F, A, T> startFragmentOnNewActivity(activityBuilder: ActivityBuilder<A>,
-                                          builder: FragmentBuilder<F>): IO<Tuple2<A, F>>
+                                             builder: FragmentBuilder<F>): IO<Tuple2<A, F>>
             where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
             StackRoute.routeStartFragAtNewActivity(
                     activityBuilder,

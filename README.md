@@ -154,7 +154,7 @@ object ActivitiesRoute {
 
     fun routeStartActivityForResult(builder: ActivityBuilder<Activity>, requestCode: Int): YRoute<ActivitiesState, Activity>
 
-    fun routeStartActivityForRx(builder: RxActivityBuilder): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>>
+    fun routeStartActivityForRx(builder: ActivityBuilder): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>>
 
     val routeFinishTop: YRoute<ActivitiesState, Unit>
 

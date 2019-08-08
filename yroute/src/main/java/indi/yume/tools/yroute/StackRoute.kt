@@ -223,6 +223,25 @@ interface StackFragment : FragmentLifecycleOwner {
 
     fun getIntent(): Intent? = controller.fromIntent
 
+    // 此方法会在当前Fragment结束之前, 如果requestCode != -1, 就会回调. 用于通知之后其他界面可以响应返回值了
+    fun preSendFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
+        if (this is Fragment)
+            makeState(FragmentLifeEvent.PreSendFragmentResult(this, requestCode, resultCode, data))
+     }
+
+    /**
+     * 此方法不保证一定会像FragmentManager库中一样被调用,
+     * 比如在StackFragment中启动一个新的StackActivity并在通过startFragmentForResult启动一个Fragment,
+     * 这个Fragment在finish()之后是不会回调本Fragment的此方法的。
+     *
+     *                      ---------startForResult------------->
+     *                     |                                     |
+     * StackActivity1{ Fragment1 }           StackActivity2{ Fragment2 }
+     *                     X                                     |
+     *                      ------not call this func <--------finish()
+     *
+     * 此方法只能保证同一个StackActivity下的前后Fragment会回调
+     */
     fun onFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
         if (this is Fragment)
             makeState(FragmentLifeEvent.OnFragmentResult(this, requestCode, resultCode, data))
@@ -530,7 +549,7 @@ object StackRoute {
         val requestCode: Int = Random.nextInt()
 
         return dealFragForResult(requestCode).mapResult { f ->
-            f.bindFragmentLife().ofType(FragmentLifeEvent.OnFragmentResult::class.java)
+            f.bindFragmentLife().ofType(FragmentLifeEvent.PreSendFragmentResult::class.java)
                 .filter { it.requestCode == requestCode }
                 .firstOrError()
                 .map { it.resultCode toT it.data }
@@ -894,10 +913,12 @@ object StackRoute {
                 .flatMapR { data -> ActivitiesRoute.finishTargetActivity(data) }
         }
 
-    fun <F> dealFinishForResult(finishF: F, backF: F): IO<Unit> where F : StackFragment = IO {
+    fun <F> dealFinishForResult(finishF: F, backF: F?): IO<Unit> where F : StackFragment = IO {
         finishF.controller.apply {
-            if (requestCode != -1)
-                backF.onFragmentResult(requestCode, resultCode, resultData)
+            if (requestCode != -1) {
+                finishF.preSendFragmentResult(requestCode, resultCode, resultData)
+                backF?.onFragmentResult(requestCode, resultCode, resultData)
+            }
         }
         Unit
     }
@@ -1351,9 +1372,10 @@ object StackRoute {
                                 }
                         ) runAtA host).flatMapR { isNotExecDefault ->
                             if (!isNotExecDefault) {
-                                if (lastF != null && lastF.requestCode != -1)
+                                (if (lastF != null && lastF.requestCode != -1) {
                                     act.setResult(lastF.resultCode, lastF.resultData?.let { Intent().putExtras(it) })
-                                ActivitiesRoute.routeFinish(act)
+                                    routeFromIO<ActivitiesState, Unit>(dealFinishForResult(lastF, null))
+                                } else routeId()).andThen(ActivitiesRoute.routeFinish(act))
                             } else routeId<ActivitiesState>()
                         }
                 }.mapResult { result }

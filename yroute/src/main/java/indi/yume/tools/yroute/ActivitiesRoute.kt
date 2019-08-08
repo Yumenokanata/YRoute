@@ -23,19 +23,22 @@ data class ActivityData(val activity: Activity,
                         val extra: Map<String, Any> = emptyMap(),
                         val animData: AnimData?)
 
-class RxActivityBuilder<A> private constructor(clazz: Class<out A>) : ActivityBuilder<A>(clazz) {
-    companion object {
-        fun <T> create(clazz: Class<T>): RxActivityBuilder<T> where T : Activity, T : ActivityLifecycleOwner =
-            RxActivityBuilder(clazz)
-    }
-}
+class ActivityBuilder<out A> {
+    val clazz: Class<out A>
 
-open class ActivityBuilder<out A>(val clazz: Class<out A>) {
-    internal var createIntent: RouteCxt.() -> Intent = {
-        Intent(app, clazz)
-    }
+    internal var createIntent: RouteCxt.() -> Intent
 
     var animData: AnimData? = globalDefaultAnimData
+
+    constructor(clazz: Class<out A>) {
+        this.clazz = clazz
+        createIntent = { Intent(app, clazz) }
+    }
+
+    constructor(intent: Intent) {
+        this.clazz = Class.forName(intent.component?.className!!) as Class<out A>
+        createIntent = { Intent(app, clazz) }
+    }
 
     fun withBundle(data: Bundle): ActivityBuilder<A> {
         createIntent = createIntent andThen { it.putExtras(data) }
@@ -120,7 +123,7 @@ object ActivitiesRoute {
             }
         }
 
-    fun <A> startActivityForRx(builder: RxActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+    fun <A> startActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
         routeF { vd, cxt ->
             binding {
                 val intent = builder.createIntent(cxt)
@@ -208,17 +211,18 @@ object ActivitiesRoute {
         startActivity(intent)
 
     fun <A : Activity> routeStartActivity(builder: ActivityBuilder<A>): YRoute<ActivitiesState, A> =
-        createActivityIntent<Activity, ActivitiesState>(builder).flatMapR { startActivity(it).ofType(type<A>()) }
+        createActivityIntent<Activity, ActivitiesState>(builder)
+                .flatMapR { startActivity(it, builder.animData).ofType(type<A>()) }
 
     fun <A : Activity> routeStartActivityForResult(builder: ActivityBuilder<A>, requestCode: Int): YRoute<ActivitiesState, A> =
         createActivityIntent<A, ActivitiesState>(builder)
-            .flatMapR { intent -> startActivityForResult(intent, requestCode) }
+            .flatMapR { intent -> startActivityForResult(intent, requestCode, builder.animData) }
                 .mapResult {
                     @Suppress("UNCHECKED_CAST")
                     it as A
                 }
 
-    fun <A> routeStartActivityForRx(builder: RxActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
+    fun <A> routeStartActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>> =
             startActivityForRx(builder)
 
     val routeFinishTop: YRoute<ActivitiesState, Unit> = backActivity

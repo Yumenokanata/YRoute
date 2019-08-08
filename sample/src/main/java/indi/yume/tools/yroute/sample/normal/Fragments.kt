@@ -48,6 +48,10 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
         makeState(FragmentLifeEvent.OnStart(this))
     }
 
+    override fun preSendFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
+        makeState(FragmentLifeEvent.PreSendFragmentResult(this, requestCode, resultCode, data))
+    }
+
     override fun onFragmentResult(requestCode: Int, resultCode: Int, data: Bundle?) {
         makeState(FragmentLifeEvent.OnFragmentResult(this, requestCode, resultCode, data))
     }
@@ -77,9 +81,15 @@ class FragmentPage1 : BaseFragment() {
         super.onViewCreated(view, savedInstanceState)
         view.findViewById<Button>(R.id.jump_other_for_result_btn).setOnClickListener {
             StackRoute.run {
-                routeStartFragmentForRx(FragmentBuilder(FragmentOther::class.java)
-                        .withParam(OtherParam("This is param from FragmentPage1."))
-                ) runAtF this@FragmentPage1
+                val requestCode = 2
+                ActivitiesRoute.routeStartActivityForResult(
+                        ActivityBuilder(SingleStackActivity::class.java)
+                                .withAnimData(AnimData()), requestCode)
+                        .flatMapR {
+                            routeStartFragmentForRx<BaseFragment>(FragmentBuilder(FragmentOther::class.java)
+                                    .withParam(OtherParam("This is param from FragmentPage1."))
+                            ) runAtA it
+                        }
             }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
                 val s = it.doOnSuccess {
                     Toast.makeText(activity,
@@ -137,9 +147,14 @@ class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
                         .withAnimData(AnimData())
                         .withParam(OtherParam("This is param from FragmentPage1."))
 
-                routeStartFragment(builder) runAtF this@FragmentOther
+                routeStartFragmentForRx(builder) runAtF this@FragmentOther
             }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
                 println("Start Anim FragmentOther: $it")
+                it.doOnSuccess { (resultCode, data) ->
+                    Toast.makeText(requireContext(),
+                            "Other${hashCode()} on result: $resultCode, data=$data",
+                            Toast.LENGTH_SHORT).show()
+                }.catchSubscribe()
             })
         }
         return view

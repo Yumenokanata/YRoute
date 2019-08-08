@@ -107,6 +107,9 @@ sealed class FragmentLifeEvent {
     // Just for StackFragment, see [StackFragment#onFragmentResult()]
     data class OnFragmentResult(val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
         : FragmentLifeEvent()
+    // Just for StackFragment, see [StackFragment#preSendFragmentResult()]
+    data class PreSendFragmentResult(val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
+        : FragmentLifeEvent()
     // Just for StackFragment, see [StackFragment#onShow()]
     data class OnShow(val fragment: Fragment, val showMode: OnShowMode): FragmentLifeEvent()
     // Just for StackFragment, see [StackFragment#onHide()]
