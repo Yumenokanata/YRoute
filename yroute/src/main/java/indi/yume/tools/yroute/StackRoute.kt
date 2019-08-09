@@ -1191,17 +1191,17 @@ object StackRoute {
                 if (stack.list.size <= 1) return@routeF IO.just(state toT stackTranResult(Success(false)))
 
                 binding {
-                    !IO {
+                    val topF = stack.list.first()
+                    val cbIOs = !IO { sequence {
                         for (item in stack.list.drop(1).reversed())
                             state.ft.remove(item.t)
-                    }
+                        state.ft.show(topF.t)
+                        if (topF.t is StackFragment) yield(IO { topF.t.onShow(OnShowMode.OnBack) })
+                    }.toList() }
 
-                    val topF = stack.list.first()
                     val topBackF = stack.list.getOrNull(1)?.t
                     if (topBackF != null && topBackF is StackFragment && topF.t is StackFragment)
                         !dealFinishForResult(topBackF, topF.t)
-
-                    val cbIOs = emptyList<IO<Unit>>()
 
                     state.copy(state = stack.copy(listOf(topF))) toT stackTranResult(cbIOs, Success(true))
                 }
@@ -1218,17 +1218,17 @@ object StackRoute {
                     return@routeF IO.just(state toT stackTranResult(Success(false)))
 
                 binding {
-                    !IO {
+                    val topF = targetList.first()
+                    val cbIOs = !IO { sequence {
                         for (item in targetList.drop(1).reversed())
                             state.ft.remove(item.t)
-                    }
+                        state.ft.show(topF.t)
+                        if (topF.t is StackFragment) yield(IO { topF.t.onShow(OnShowMode.OnBack) })
+                    }.toList() }
 
-                    val topF = targetList.first()
                     val topBackF = targetList.getOrNull(1)?.t
                     if (topBackF != null && topBackF is StackFragment && topF.t is StackFragment)
                         !dealFinishForResult(topBackF, topF.t)
-
-                    val cbIOs = emptyList<IO<Unit>>()
 
                     state.copy(state = stack.copy(
                             table = stack.table + (currentTag to listOf(topF)),

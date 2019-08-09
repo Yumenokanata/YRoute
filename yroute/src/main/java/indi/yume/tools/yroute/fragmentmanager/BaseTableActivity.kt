@@ -13,6 +13,11 @@ abstract class BaseTableActivity<F> : BaseFragmentManagerActivity<F, StackType.T
         where F : Fragment, F : StackFragment
 
 
+fun <A, F> A.getCurrentStackTag(): IO<String?>
+        where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> =
+        StackRoute.routeGetStackFromActivity(this).start(core).flattenForYRoute()
+                .map { it.stack.current?.first }
+
 fun <A, F> A.getCurrentStackSize(): IO<Int>
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> =
         StackRoute.routeGetStackFromActivity(this).start(core).flattenForYRoute()
