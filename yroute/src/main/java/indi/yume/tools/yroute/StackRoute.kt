@@ -681,7 +681,11 @@ object StackRoute {
                             .onEach { vd.ft.hide(it.t) }
                             .map { IO { it.t.onHide(OnHideMode.OnStartNew) } }
                     vd.ft.add(vd.fragmentId, fragment)
-                    val cbIOs = hideIOs + IO { fragment.onShow(OnShowMode.OnCreate) }
+                    val cbIOs = hideIOs + fragment.bindFragmentLife()
+                            .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                            .firstElement()
+                            .toIO()
+                            .map { fragment.onShow(OnShowMode.OnCreate) }
 
                     vd.copy(state = newStack) toT
                             stackTranResult(cbIOs, Success(fragment))
@@ -714,7 +718,11 @@ object StackRoute {
                     val cbIOs = !IO {
                         sequence {
                             vd.ft.add(vd.fragmentId, fragment)
-                            yield(IO { fragment.onShow(OnShowMode.OnCreate) })
+                            yield(fragment.bindFragmentLife()
+                                    .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                                    .firstElement()
+                                    .toIO()
+                                    .map { fragment.onShow(OnShowMode.OnCreate) })
                             if (backF != null && backF.isVisible) {
                                 vd.ft.hide(backF)
                                 yield(IO { backF.onHide(OnHideMode.OnStartNew) })
@@ -781,7 +789,13 @@ object StackRoute {
                         stackTranResult(Success(fragment))
                     } else {
                         !IO { vd.ft.add(vd.fragmentId, fragment) }
-                        stackTranResult(listOf(IO { fragment.onShow(OnShowMode.OnCreate) }),
+                        val onCreateIO = fragment.bindFragmentLife()
+                                .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                                .firstElement()
+                                .toIO()
+                                .map { fragment.onShow(OnShowMode.OnCreate) }
+
+                        stackTranResult(listOf(onCreateIO),
                                 Success(fragment))
                     }
 
@@ -850,7 +864,11 @@ object StackRoute {
                             is Success -> !IO {
                                 val cbIOs = hideIOs + sequence {
                                     vd.ft.add(vd.fragmentId, result.t)
-                                    if (result.t is StackFragment) yield(IO { result.t.onShow(OnShowMode.OnCreate) })
+                                    if (result.t is StackFragment) yield(result.t.bindFragmentLife()
+                                            .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                                            .firstElement()
+                                            .toIO()
+                                            .map { result.t.onShow(OnShowMode.OnCreate) })
                                     if (silentSwitch) vd.ft.hide(result.t)
                                 }
 
@@ -1168,7 +1186,11 @@ object StackRoute {
                                 is Success -> !IO {
                                     val cbIOs = sequence {
                                         state.ft.add(state.fragmentId, result.t)
-                                        if (result.t is StackFragment) yield(IO { result.t.onShow(OnShowMode.OnCreate) })
+                                        if (result.t is StackFragment) yield(result.t.bindFragmentLife()
+                                                .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                                                .firstElement()
+                                                .toIO()
+                                                .map { result.t.onShow(OnShowMode.OnCreate) })
                                     }.toList()
 
                                     val newItem = FItem<F>(result.t, CoreID.get(), currentTag, null)

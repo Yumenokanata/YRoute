@@ -14,9 +14,7 @@ import androidx.annotation.AnimRes
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentTransaction
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
+import arrow.core.*
 import arrow.effects.IO
 import arrow.effects.OnCancel
 import arrow.effects.typeclasses.Disposable
@@ -174,6 +172,7 @@ private val typeFake = TypeCheck<Nothing>()
 @Suppress("UNCHECKED_CAST")
 fun <T> type(): TypeCheck<T> = typeFake as TypeCheck<T>
 
+fun <T> Maybe<T>.toIO(): IO<Option<T>> = map { it.some() }.toSingle(none()).toIO()
 
 fun <T> Single<T>.toIO(): IO<T> = IO.async { connection, cb ->
     val disposable = subscribe({ cb(it.right()) }, { cb(it.left()) })
