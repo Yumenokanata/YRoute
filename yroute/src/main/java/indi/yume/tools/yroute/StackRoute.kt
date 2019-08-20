@@ -1378,30 +1378,44 @@ object StackRoute {
             routeRunAtAct(host, this).flatMapR { (lastF, result) ->
                 when (result) {
                     FinishResult.FinishOver -> routeId<ActivitiesState>()
-                    FinishResult.FinishParent ->
-                        (foldForFragState<F, Boolean>(
-                                single = routeFromState { s ->
-                                    s.stack.list.foldRight(false) { i, b -> b || i.t.onBackPressed() }
-                                            || host.onBackPressed(s.stack.list.size)
-                                },
-                                table = routeFromState { s ->
-                                    val currentTag = s.stack.current?.first
-                                    val currentStack = s.stack.table[currentTag]
-
-                                    (if (currentTag != null && !currentStack.isNullOrEmpty())
-                                        currentStack.foldRight(false) { i, b -> b || i.t.onBackPressed() }
-                                    else false) || host.onBackPressed(currentStack?.size ?: 0)
-                                }
-                        ) runAtA host).flatMapR { isNotExecDefault ->
-                            if (!isNotExecDefault) {
-                                (if (lastF != null && lastF.requestCode != -1) {
-                                    act.setResult(lastF.resultCode, lastF.resultData?.let { Intent().putExtras(it) })
-                                    routeFromIO<ActivitiesState, Unit>(dealFinishForResult(lastF, null))
-                                } else routeId()).andThen(ActivitiesRoute.routeFinish(act))
-                            } else routeId<ActivitiesState>()
-                        }
+                    FinishResult.FinishParent -> {
+                        (if (lastF != null && lastF.requestCode != -1) {
+                            act.setResult(lastF.resultCode, lastF.resultData?.let { Intent().putExtras(it) })
+                            routeFromIO<ActivitiesState, Unit>(dealFinishForResult(lastF, null))
+                        } else routeId()).andThen(ActivitiesRoute.routeFinish(act))
+                    }
                 }.mapResult { result }
             }
+
+    fun <F, T> checkOnBackPressed(host: StackHost<F, T>): YRoute<ActivitiesState, Boolean>
+            where F : Fragment, F : StackFragment, T : StackType<F> =
+            foldForFragState<F, Boolean>(
+                    single = routeFromState { s ->
+                        s.stack.list.foldRight(false) { i, b -> b || i.t.onBackPressed() }
+                                || host.onBackPressed(s.stack.list.size)
+                    },
+                    table = routeFromState { s ->
+                        val currentTag = s.stack.current?.first
+                        val currentStack = s.stack.table[currentTag]
+
+                        (if (currentTag != null && !currentStack.isNullOrEmpty())
+                            currentStack.foldRight(false) { i, b -> b || i.t.onBackPressed() }
+                        else false) || host.onBackPressed(currentStack?.size ?: 0)
+                    }
+            ) runAtA host
+
+    fun <F, T> routeOnBackPressed(
+            act: FragmentActivity, host: StackHost<F, T>): YRoute<ActivitiesState, Boolean>
+            where F : Fragment, F : StackFragment, T : StackType<F> =
+            checkOnBackPressed(host).flatMapR { isNotExecDefault ->
+                (if (isNotExecDefault) routeId<ActivitiesState>()
+                else routeFinishFragment<F>(null).mapFinishResult().runAtADealFinish(act, host))
+                        .mapResult { isNotExecDefault }
+            }
+
+    fun <F, T, A> routeOnBackPress(activity: A): YRoute<ActivitiesState, Boolean>
+            where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
+            routeOnBackPressed(activity, activity)
 
     fun <F> routeStartFragmentAtSingle(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Single<F>>, F>
             where F : Fragment, F : StackFragment =
@@ -1546,10 +1560,6 @@ object StackRoute {
                                 .runAtA(activity)
                                 .mapResult { f -> activity toT f }
                     }
-
-    fun <F, T, A> routeOnBackPress(activity: A): YRoute<ActivitiesState, FinishResult>
-            where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
-            routeFinishFragment<F>(null).mapFinishResult() runAtADealFinish activity
 
     fun <F> startWithShared(builder: FragmentBuilder<F>, view: View): YRoute<StackFragState<F, StackType<F>>, F>
             where F : Fragment, F : StackFragment =
