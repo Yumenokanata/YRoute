@@ -1048,9 +1048,13 @@ object StackRoute {
                 val (backItem, targetItem) = target
                 Logger.d("finishFragmentAtSingle", "target=$target")
 
-                if (backItem == null) {
-                    // Do not finish top fragment
-                    return@routeF IO.just(state toT stackTranResult(Success(target toT FinishResult.FinishParent)))
+                if (backItem == null || stack.list.lastOrNull() != targetItem) {
+                    return@routeF if (stack.list.size <= 1) {
+                        // Do not finish top fragment
+                        IO.just(state toT stackTranResult(Success(target toT FinishResult.FinishParent)))
+                    } else {
+                        finishFragmentAtSingleNoAnim<F>(targetF).runRoute(state, cxt)
+                    }
                 }
 
                 binding {
@@ -1098,9 +1102,13 @@ object StackRoute {
                 }
                 val (targetTag, backF, targetF) = targetItem
 
-                if (backF == null) {
-                    // Do not finish top fragment
-                    return@routeF IO.just(state toT stackTranResult(Success(null toT FinishResult.FinishParent)))
+                if (backF == null || stack.table[targetTag]?.lastOrNull() != targetF) {
+                    return@routeF if (stack.table[targetTag]?.size ?: 0 <= 1) {
+                        // Do not finish top fragment
+                        IO.just(state toT stackTranResult(Success(targetItem toT FinishResult.FinishParent)))
+                    } else {
+                        finishFragmentAtTableNoAnim<F>(target).runRoute(state, cxt)
+                    }
                 }
 
                 binding {
