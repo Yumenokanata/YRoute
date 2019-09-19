@@ -3,15 +3,14 @@ package indi.yume.tools.yroute.datatype
 import arrow.Kind
 import arrow.core.*
 import arrow.core.Either.*
-import arrow.effects.ForIO
-import arrow.effects.IO
-import arrow.effects.extensions.io.fx.fx
-import arrow.effects.extensions.io.monadDefer.binding
-import arrow.effects.internal.Platform
-import arrow.effects.typeclasses.Async
-import arrow.effects.typeclasses.Proc
+import arrow.fx.IO
+import arrow.fx.ForIO
+import arrow.fx.extensions.fx
+import arrow.fx.typeclasses.Async
 import arrow.typeclasses.Monad
 import arrow.typeclasses.MonadThrow
+import java.util.*
+import java.util.concurrent.atomic.AtomicReference
 
 data class Await<F, A, O>(
     val req: Kind<F, A>,
@@ -310,7 +309,7 @@ sealed class Process<F, O> {
                 when (cur) {
                     is Emit -> go(cur.tail, acc + cur.head)
                     is Halt -> if (cur.err == End) IO.just(acc) else IO.raiseError(cur.err)
-                    is Await<ForIO, *, O> -> binding {
+                    is Await<ForIO, *, O> -> IO.fx {
                         val result: Any? = !cur.req
                         val next = cur.anyRecv(result.right())
                         !go(next, acc)
@@ -325,17 +324,14 @@ sealed class Process<F, O> {
                 when (cur) {
                     is Emit -> go(cur.tail, acc + cur.head)
                     is Halt -> if (cur.err == End) MT.just(acc) else MT.raiseError(cur.err)
-                    is Await<F, *, O> -> MT.bindingCatch {
+                    is Await<F, *, O> -> MT.fx.monad {
                         val result: Any? = !cur.req
                         val next = cur.anyRecv(result.right())
                         !go(next, acc)
                     }
                 }
-            IO.fx()
 
-            return MT.bindingCatch {
-                !go(src, emptyList())
-            }
+            return go(src, emptyList())
         }
 
         /*
@@ -526,8 +522,45 @@ sealed class Process<F, O> {
 
             return lines()
         }
+
+        fun <F, T> create(AS: Async<F>, sender: ((EventType<T>) -> Unit) -> Unit): Process<F, T> {
+            val queue: Queue<EventType<T>> = ArrayDeque()
+            val nowCB: AtomicReference<CB<T>> = AtomicReference<CB<T>>(null)
+
+            val callback: (EventType<T>) -> Unit = { event ->
+                val cb = nowCB.get()
+                if (cb == null) {
+                    queue.offer(event)
+                } else {
+                    cb(event.right())
+                }
+            }
+            val next = AS.async<EventType<T>> {
+                nowCB.getAndSet(null)
+                val event = queue.poll()
+                if (event != null) {
+                    it(event.right())
+                } else {
+                    nowCB.compareAndSet(null, it)
+                }
+            }
+
+            fun lines(): Process<F, T> =
+                    Process.eval(next).flatMap {
+                        when (it) {
+                            is EventType.OnNext -> Emit(it.t, lines())
+                            is EventType.OnComplete -> Halt<F, T>(End)
+                        }
+                    }
+            val first = lines()
+            sender(callback)
+
+            return first
+        }
     }
 }
+
+typealias CB<T> = (Either<Throwable, EventType<T>>) -> Unit
 
 interface Emitter<T> {
     fun onNext(t: T)

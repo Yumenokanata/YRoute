@@ -1,7 +1,7 @@
 package indi.yume.tools.yroute.fragmentmanager
 
 import androidx.fragment.app.Fragment
-import arrow.effects.IO
+import arrow.fx.IO
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.start
 

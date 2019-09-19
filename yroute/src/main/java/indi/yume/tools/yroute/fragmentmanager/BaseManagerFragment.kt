@@ -9,9 +9,9 @@ import android.view.ViewGroup
 import androidx.annotation.CallSuper
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import arrow.core.Tuple2
-import arrow.effects.IO
-import arrow.effects.extensions.io.monad.flatten
+import arrow.core.*
+import arrow.fx.IO
+import arrow.fx.extensions.io.monad.flatten
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.*
 import io.reactivex.subjects.Subject
@@ -146,6 +146,21 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
                 .resultNonNull("Can not find parent StackHost.")
                 .flatMapR { host ->
                     routeFinishFragment<F>(this@BaseManagerFragment)
+                            .mapFinishResult()
+                            .runAtADealFinish(requireActivity(), host)
+                            .mapResult { Unit }
+                }
+    }.start(core).flattenForYRoute()
+
+    fun finishNoAnim(): IO<Unit> = StackRoute.run {
+        routeGetStackFromFrag<F, StackType<F>>(this@BaseManagerFragment)
+                .resultNonNull("Can not find parent StackHost.")
+                .flatMapR { host ->
+                    foldForFragState(
+                            routeFinishFragmentAtSingleNoAnim<F>(this@BaseManagerFragment)
+                                    .mapResult { (it.a.left() as Either<SingleTarget<F>?, TableTarget<F>?>) toT it.b },
+                            routeFinishFragmentAtTableNoAnim<F>(this@BaseManagerFragment)
+                                    .mapResult { (it.a.right() as Either<SingleTarget<F>?, TableTarget<F>?>) toT it.b })
                             .mapFinishResult()
                             .runAtADealFinish(requireActivity(), host)
                             .mapResult { Unit }

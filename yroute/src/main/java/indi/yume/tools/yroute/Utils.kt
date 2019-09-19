@@ -15,9 +15,9 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentTransaction
 import arrow.core.*
-import arrow.effects.IO
-import arrow.effects.OnCancel
-import arrow.effects.typeclasses.Disposable
+import arrow.fx.IO
+import arrow.fx.OnCancel
+import arrow.fx.typeclasses.Disposable
 import arrow.optics.Lens
 import arrow.typeclasses.Monoid
 import indi.yume.tools.yroute.datatype.YResult
@@ -27,6 +27,7 @@ import indi.yume.tools.yroute.datatype.Success
 import io.reactivex.*
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import io.reactivex.disposables.Disposable as RxDisposable
 import java.lang.Exception
 import java.util.concurrent.atomic.AtomicLong
 
@@ -70,12 +71,12 @@ sealed class ActivityLifeEvent {
     data class OnPause(val activity: Activity) : ActivityLifeEvent()
     data class OnStop(val activity: Activity) : ActivityLifeEvent()
     data class OnDestroy(val activity: Activity) : ActivityLifeEvent()
-    data class OnSaveInstanceState(val activity: Activity, val outState: Bundle?) : ActivityLifeEvent()
+    data class OnSaveInstanceState(val activity: Activity, val outState: Bundle) : ActivityLifeEvent()
 
     // Global activity stream not have this events:
     data class OnNewIntent(val activity: Activity, val intent: Intent?) : ActivityLifeEvent()
 
-    data class OnConfigurationChanged(val activity: Activity, val newConfig: Configuration?) : ActivityLifeEvent()
+    data class OnConfigurationChanged(val activity: Activity, val newConfig: Configuration) : ActivityLifeEvent()
     data class OnActivityResult(
         val activity: Activity, val requestCode: Int,
         val resultCode: Int, val data: Intent?
@@ -174,10 +175,17 @@ fun <T> type(): TypeCheck<T> = typeFake as TypeCheck<T>
 
 fun <T> Maybe<T>.toIO(): IO<Option<T>> = map { it.some() }.toSingle(none()).toIO()
 
-fun <T> Single<T>.toIO(): IO<T> = IO.async { connection, cb ->
-    val disposable = subscribe({ cb(it.right()) }, { cb(it.left()) })
-    connection.push(IO { disposable.dispose() })
-}
+fun <T> Single<T>.toIO(): IO<T> = IO.async<Pair<T, RxDisposable?>> { cb ->
+    var disposable: RxDisposable? = null
+    disposable = subscribe({ cb((it to disposable).right()) }, { cb(it.left()) })
+    Unit
+}.bracketCase(
+        release = { (_, disposable), exitCase ->
+            disposable?.dispose()
+            IO.unit
+        },
+        use = { IO.just(it.first) }
+)
 
 fun Completable.toIO(): IO<Unit> = toSingleDefault(Unit).toIO()
 

@@ -42,12 +42,12 @@ abstract class BaseFragmentActivity<T : StackType<BaseFragment>> : FragmentActiv
         makeState(ActivityLifeEvent.OnNewIntent(this, intent))
     }
 
-    override fun onSaveInstanceState(outState: Bundle?) {
+    override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         makeState(ActivityLifeEvent.OnSaveInstanceState(this, outState))
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration?) {
+    override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         makeState(ActivityLifeEvent.OnConfigurationChanged(this, newConfig))
     }

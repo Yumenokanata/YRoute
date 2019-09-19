@@ -1,21 +1,16 @@
 package indi.yume.tools.yroute.datatype.lazy
 
 import arrow.core.*
-import arrow.data.Reader
-import arrow.data.ReaderT
-import arrow.data.StateT
-import arrow.data.extensions.kleisli.monad.monad
-import arrow.data.runId
-import arrow.effects.ForIO
-import arrow.effects.IO
-import arrow.effects.extensions.io.monad.monad
-import arrow.effects.extensions.io.monadDefer.binding
+import arrow.mtl.Reader
+import arrow.fx.IO
+import arrow.fx.extensions.fx
 import arrow.generic.coproduct2.Coproduct2
 import arrow.generic.coproduct2.First
 import arrow.generic.coproduct2.Second
 import arrow.generic.coproduct2.fold
 import arrow.generic.coproduct3.Coproduct3
 import arrow.generic.coproduct3.fold
+import arrow.mtl.runId
 import arrow.optics.Lens
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.*
@@ -59,7 +54,7 @@ fun <S, T, R> routeFromF(f: (T) -> R): LazyYRoute<S, T, R> =
 
 fun <S, T, R, R2> LazyYRoute<S, T, R>.flatMapR(f: (R) -> LazyYRoute<S, T, R2>): LazyYRoute<S, T, R2> =
     routeF { state, cxt, param ->
-        binding {
+        IO.fx {
             val (newState1, result1) = !this@flatMapR.runRoute(state, cxt, param)
 
             when (result1) {
@@ -71,7 +66,7 @@ fun <S, T, R, R2> LazyYRoute<S, T, R>.flatMapR(f: (R) -> LazyYRoute<S, T, R2>): 
 
 fun <S1, T1, S2, T2, R> LazyYRoute<S1, T1, Lens<S1, S2>>.composeState(route: LazyYRoute<S2, T2, R>): LazyYRoute<S1, Tuple2<T1, T2>, R> =
     routeF { state1, cxt, (t1, t2) ->
-        binding {
+        IO.fx {
             val (innerState1, lensResult) = !this@composeState.runRoute(state1, cxt, t1)
 
             when (lensResult) {
@@ -99,7 +94,7 @@ fun <S1, T1, T, S2, R> LazyYRoute<S2, T1, R>.changeState(f: (T) -> Lens<S1, S2>)
 
 fun <S1, T, S2, R> LazyYRoute<S2, T, R>.transStateByParam(f: (T) -> Lens<S1, S2>): LazyYRoute<S1, T, R> =
     routeF { state1, cxt, param ->
-        binding {
+        IO.fx {
             val lens = f(param)
             val state2 = lens.get(state1)
             val (newState1, result) = !this@transStateByParam.runRoute(state2, cxt, param)
@@ -111,7 +106,7 @@ fun <S1, T, S2, R> LazyYRoute<S2, T, R>.transStateByParam(f: (T) -> Lens<S1, S2>
 
 fun <S1, S2, R> LazyYRoute<S2, Lens<S1, S2>, R>.apForState(): LazyYRoute<S1, Lens<S1, S2>, R> =
     routeF { state1, cxt, lens ->
-        binding {
+        IO.fx {
             val state2 = lens.get(state1)
             val (newState1, result) = !this@apForState.runRoute(state2, cxt, lens)
             val newState2 = lens.set(state1, newState1)
@@ -121,7 +116,7 @@ fun <S1, S2, R> LazyYRoute<S2, Lens<S1, S2>, R>.apForState(): LazyYRoute<S1, Len
 
 fun <S, T, T1, R> LazyYRoute<S, T, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
     routeF { state, cxt, param ->
-        binding {
+        IO.fx {
             val (tuple2) = this@transform.runRoute(state, cxt, param)
             val (newState, resultT1) = tuple2
 
@@ -136,7 +131,7 @@ fun <S1, S2, T, R> LazyYRoute<S1, T, R>.mapStateF(lensF: (T) -> Lens<S2, S1>): L
     routeF { state2, cxt, param ->
         val lens = lensF(param)
         val state1 = lens.get(state2)
-        binding {
+        IO.fx {
             val (newState1, result) = !this@mapStateF.runRoute(state1, cxt, param)
             val newState2 = lens.set(state2, newState1)
             newState2 toT result
@@ -146,7 +141,7 @@ fun <S1, S2, T, R> LazyYRoute<S1, T, R>.mapStateF(lensF: (T) -> Lens<S2, S1>): L
 fun <S1, S2, T, R> LazyYRoute<S1, T, R>.mapState(lens: Lens<S2, S1>): LazyYRoute<S2, T, R> =
     routeF { state2, cxt, param ->
         val state1 = lens.get(state2)
-        binding {
+        IO.fx {
             val (newState1, result) = !this@mapState.runRoute(state1, cxt, param)
             val newState2 = lens.set(state2, newState1)
             newState2 toT result
@@ -169,7 +164,7 @@ fun <S, T, R : Any> LazyYRoute<S, T, R?>.resultNonNull(tag: String = "resultNonN
 
 fun <S, T, T1, R> LazyYRoute<S, T, T1>.composeWith(f: (S, RouteCxt, T, T1) -> IO<Tuple2<S, YResult<R>>>): LazyYRoute<S, T, R> =
     routeF { state, cxt, param ->
-        binding {
+        IO.fx {
             val (tuple2) = this@composeWith.runRoute(state, cxt, param)
             val (newState, resultT1) = tuple2
 
@@ -182,7 +177,7 @@ fun <S, T, T1, R> LazyYRoute<S, T, T1>.composeWith(f: (S, RouteCxt, T, T1) -> IO
 
 fun <S, T1, T2, R1, R2> LazyYRoute<S, T1, R1>.zipWithFunc(f: (T2) -> R2): LazyYRoute<S, Tuple2<T1, T2>, Tuple2<R1, R2>> =
     routeF { state, cxt, (param1, param2) ->
-        binding {
+        IO.fx {
             val (newState, result1) = !this@zipWithFunc.runRoute(state, cxt, param1)
             newState toT result1.map { it toT f(param2) }
         }
@@ -190,7 +185,7 @@ fun <S, T1, T2, R1, R2> LazyYRoute<S, T1, R1>.zipWithFunc(f: (T2) -> R2): LazyYR
 
 fun <S1, S2, T1, T2, R1, R2> zipRoute(route1: LazyYRoute<S1, T1, R1>, route2: LazyYRoute<S2, T2, R2>): LazyYRoute<Tuple2<S1, S2>, Tuple2<T1, T2>, Tuple2<R1, R2>> =
     routeF { (state1, state2), cxt, (param1, param2) ->
-        binding {
+        IO.fx {
             val (newState1, result1) = !route1.runRoute(state1, cxt, param1)
             val (newState2, result2) = !route2.runRoute(state2, cxt, param2)
             (newState1 toT newState2) toT result1.flatMap { r1 -> result2.map { r2 -> r1 toT r2 } }
@@ -211,7 +206,7 @@ fun <S, T, R1, R2> LazyYRoute<S, T, Tuple2<R1, R2>>.switchResult(): LazyYRoute<S
 
 infix fun <S, T, T1, R> LazyYRoute<S, T, T1>.compose(route2: LazyYRoute<S, T1, R>): LazyYRoute<S, T, R> =
     routeF { state, cxt, param ->
-        binding {
+        IO.fx {
             val (tuple2) = this@compose.runRoute(state, cxt, param)
             val (newState, resultT1) = tuple2
 
@@ -224,7 +219,7 @@ infix fun <S, T, T1, R> LazyYRoute<S, T, T1>.compose(route2: LazyYRoute<S, T1, R
 
 fun <S, SS, T, R> LazyYRoute<SS, T, R>.subRoute(type: TypeCheck<S>, mapper: (S) -> SS, demapper: (SS, S) -> S): LazyYRoute<S, T, R> =
     routeF { state, cxt, param ->
-        binding {
+        IO.fx {
             val sstate = mapper(state)
 
             val (newSS, result) = !this@subRoute.runRoute(sstate, cxt, param)
@@ -237,7 +232,7 @@ fun <S, SS, T, R> LazyYRoute<SS, T, R>.subRoute(type: TypeCheck<S>, mapper: (S) 
 
 fun <S, SS, T, R> LazyYRoute<S, T, LazyYRoute<SS, T, R>>.flatten(type: TypeCheck<T>, mapper: (S) -> SS, demapper: (SS) -> S): LazyYRoute<S, T, R> =
     routeF { state, cxt, param ->
-        binding {
+        IO.fx {
             val (innerS, innerLazyYRouteResult) = !this@flatten.runRoute(state, cxt, param)
 
             val sstate = mapper(innerS)

@@ -2,17 +2,11 @@ package indi.yume.tools.yroute.datatype
 
 import arrow.Kind
 import arrow.core.*
-import arrow.data.*
 
 import arrow.extension
-import arrow.effects.extensions.io.monadDefer.binding
-import arrow.data.extensions.statet.applicative.applicative
-import arrow.data.extensions.statet.functor.functor
-import arrow.data.extensions.statet.monad.monad
-import arrow.effects.IO
-import arrow.effects.extensions.io.monad.monad
-import arrow.effects.fix
-import arrow.effects.handleErrorWith
+import arrow.fx.IO
+import arrow.fx.extensions.fx
+import arrow.fx.fix
 import arrow.typeclasses.*
 import arrow.typeclasses.suspended.monad.commutative.safe.Fx
 import indi.yume.tools.yroute.YRouteException
@@ -35,7 +29,7 @@ interface YRouteApplicative<S> : Applicative<YRoutePartialOf<S>>, YRouteFunctor<
 
     override fun <A, B> YRouteOf<S, A>.ap(ff: YRouteOf<S, (A) -> B>): YRoute<S, B> =
             routeF { s, routeCxt ->
-                binding {
+                IO.fx {
                     val (innerState, aResult) = !fix().runRoute(s, routeCxt)
                     when(aResult) {
                         is Success -> {
@@ -81,7 +75,7 @@ interface YRouteMonad<S> : Monad<YRoutePartialOf<S>>, YRouteApplicative<S> {
 
     override fun <A, B> YRouteOf<S, A>.ap(ff: YRouteOf<S, (A) -> B>): YRoute<S, B> =
             routeF { s, routeCxt ->
-                IO.monad().binding {
+                IO.fx {
                     val (innerState, aResult) = !fix().runRoute(s, routeCxt)
                     when(aResult) {
                         is Success -> {
@@ -103,7 +97,7 @@ interface YRouteApplicativeError<S> : ApplicativeError<YRoutePartialOf<S>, Throw
 
     override fun <A> YRouteOf<S, A>.handleErrorWith(f: (Throwable) -> YRouteOf<S, A>): YRoute<S, A> =
             routeF { s, routeCxt ->
-                IO.monad().binding {
+                IO.fx {
                     val (newState, result) = !this@handleErrorWith.fix().runRoute(s, routeCxt)
                             .handleErrorWith { t ->
                                 f(t).fix().runRoute(s, routeCxt)

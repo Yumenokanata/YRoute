@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.PersistableBundle
 import androidx.appcompat.app.AppCompatActivity
 import indi.yume.tools.yroute.ActivityLifeEvent
 import indi.yume.tools.yroute.ActivityLifecycleOwner
@@ -42,12 +43,12 @@ abstract class BaseLifeActivity : AppCompatActivity(), ActivityLifecycleOwner {
         makeState(ActivityLifeEvent.OnNewIntent(this, intent))
     }
 
-    override fun onSaveInstanceState(outState: Bundle?) {
+    override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         makeState(ActivityLifeEvent.OnSaveInstanceState(this, outState))
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration?) {
+    override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         makeState(ActivityLifeEvent.OnConfigurationChanged(this, newConfig))
     }

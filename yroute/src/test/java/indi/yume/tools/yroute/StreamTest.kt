@@ -3,15 +3,18 @@ package indi.yume.tools.yroute
 import arrow.core.Either
 import arrow.core.None
 import arrow.core.Some
+import arrow.core.extensions.either.foldable.size
 import arrow.effects.ForIO
-import arrow.effects.IO
+import arrow.fx.IO
 import arrow.effects.extensions.io.async.async
+import arrow.effects.extensions.io.fx.fx
 import org.junit.Test
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 import arrow.effects.extensions.io.monad.monad
 import indi.yume.tools.yroute.datatype.*
+import kotlinx.coroutines.Dispatchers
 import java.io.BufferedReader
 
 class StreamTest {
@@ -166,15 +169,44 @@ class StreamTest {
 //
 //        println(Process.runLog(out).attempt().unsafeRunSync().toString())
 
-        val createP = Process.create(IO.monad(), sequence {
-            for (i in 0..5)
-                yield(EventType.OnNext(i))
+//        val createP = Process.create(IO.monad(), sequence {
+//            for (i in 0..5)
+//                yield(EventType.OnNext(i))
+//
+//            yield(EventType.OnComplete)
+//
+//            yield(EventType.OnNext(999))
+//        })
+//
+//        println(Process.runLog(createP).attempt().unsafeRunSync().toString())
 
-            yield(EventType.OnComplete)
+        val createCB = Process.create<ForIO, Int>(IO.async()) { emitter ->
+            Thread {
+                for (i in 0..99) {
+                    emitter(EventType.OnNext(i))
+                }
 
-            yield(EventType.OnNext(999))
-        })
+                emitter(EventType.OnComplete)
 
-        println(Process.runLog(createP).attempt().unsafeRunSync().toString())
+                emitter(EventType.OnNext(999))
+            }.start()
+        }.flatMap {
+            await(IO.fx().fx {
+                continueOn(Dispatchers.IO)
+                Thread.sleep(1L * it / 10)
+                "$it"
+            }) {
+                when (it) {
+                    is Either.Right -> emit<ForIO, String>(it.b)
+                    is Either.Left -> Halt(it.a)
+                }
+            }
+        }
+
+        Process.runLog(createCB).unsafeRunAsync {
+            println(it.toString())
+            println((it as? Either.Right)?.b?.size)
+        }
+        Thread.sleep(9999)
     }
 }

@@ -3,7 +3,7 @@ package indi.yume.tools.yroute.sample.fragmentmanager
 import android.os.Bundle
 import android.widget.Button
 import arrow.core.Either
-import arrow.effects.IO
+import arrow.fx.IO
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.CoreEngine
 import indi.yume.tools.yroute.datatype.Fail

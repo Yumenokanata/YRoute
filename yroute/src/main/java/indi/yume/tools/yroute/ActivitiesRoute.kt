@@ -8,8 +8,8 @@ import arrow.core.Either
 import arrow.core.Tuple2
 import arrow.core.andThen
 import arrow.core.toT
-import arrow.effects.IO
-import arrow.effects.extensions.io.monadDefer.binding
+import arrow.fx.IO
+import arrow.fx.extensions.fx
 import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
 import io.reactivex.Completable
@@ -72,7 +72,7 @@ object ActivitiesRoute {
     fun startActivity(intent: Intent, animData: AnimData? = globalDefaultAnimData): YRoute<ActivitiesState, Activity> =
         routeF { vd, cxt ->
             Logger.d("startActivity", "start startActivity action")
-            binding {
+            IO.fx {
                 val top: Context = vd.list.lastOrNull()?.activity ?: cxt.app
 
                 Logger.d("startActivity", "startActivity: intent=$intent")
@@ -99,7 +99,7 @@ object ActivitiesRoute {
 
     fun startActivityForResult(intent: Intent, requestCode: Int, animData: AnimData? = globalDefaultAnimData): YRoute<ActivitiesState, Activity> =
         routeF { vd, cxt ->
-            binding {
+            IO.fx {
                 val top = vd.list.lastOrNull()?.activity
 
                 if (top != null) {
@@ -125,7 +125,7 @@ object ActivitiesRoute {
 
     fun <A> startActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Tuple2<A, Single<Tuple2<Int, Bundle?>>>> =
         routeF { vd, cxt ->
-            binding {
+            IO.fx {
                 val intent = builder.createIntent(cxt)
                 val top = vd.list.lastOrNull()?.activity
 
@@ -159,7 +159,7 @@ object ActivitiesRoute {
 
     val backActivity: YRoute<ActivitiesState, Unit> =
         routeF { vd, cxt ->
-            binding {
+            IO.fx {
                 val top = vd.list.lastOrNull()
 
                 if (top != null) {
@@ -179,7 +179,7 @@ object ActivitiesRoute {
 
     fun finishTargetActivity(targetData: ActivityData): YRoute<ActivitiesState, Unit> =
         routeF { vd, cxt ->
-            binding {
+            IO.fx {
                 val targetItem = vd.list.firstOrNull { it.hashTag == targetData.hashTag }
 
                 if (targetItem != null) {
@@ -230,7 +230,7 @@ object ActivitiesRoute {
     fun routeFinish(activity: Activity): YRoute<ActivitiesState, Unit> =
         findTargetActivityItem(activity)
             .composeWith { state, cxt, item ->
-                binding {
+                IO.fx {
                     if (item == null) {
                         !IO { activity.finish() }
                         state toT Success(Unit)
@@ -278,7 +278,7 @@ fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit>
 
                 IO.just(newState)
             }
-            is ActivityLifeEvent.OnSaveInstanceState -> binding {
+            is ActivityLifeEvent.OnSaveInstanceState -> IO.fx {
                 val item = state.list.firstOrNull { it.activity === event.activity }
                 if (item != null)
                     !IO { event.outState?.apply { putString(SAVE_STORE_HASH_TAG, item.hashTag.toString()) } }

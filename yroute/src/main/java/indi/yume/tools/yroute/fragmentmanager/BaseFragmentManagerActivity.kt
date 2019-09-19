@@ -8,8 +8,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import arrow.core.Tuple2
-import arrow.effects.IO
-import arrow.effects.extensions.io.monad.flatten
+import arrow.fx.IO
+import arrow.fx.extensions.io.monad.flatten
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.CoreEngine
@@ -55,12 +55,12 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
         makeState(ActivityLifeEvent.OnNewIntent(this, intent))
     }
 
-    override fun onSaveInstanceState(outState: Bundle?) {
+    override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         makeState(ActivityLifeEvent.OnSaveInstanceState(this, outState))
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration?) {
+    override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         makeState(ActivityLifeEvent.OnConfigurationChanged(this, newConfig))
     }
@@ -78,7 +78,7 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
 
     override fun onBackPressed() {
         StackRoute.routeOnBackPress(this).start(core).unsafeRunAsync { result ->
-            println("onBackPressed | result=$result")
+            Logger.d("onBackPressed", "result=$result")
         }
     }
 

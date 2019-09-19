@@ -5,16 +5,11 @@ import android.app.Application
 import android.os.Bundle
 import androidx.annotation.CheckResult
 import arrow.core.*
-import arrow.data.*
-import arrow.data.extensions.kleisli.monad.monad
-import arrow.effects.ForIO
-import arrow.effects.IO
-import arrow.effects.MVar
-import arrow.effects.extensions.io.applicativeError.handleError
-import arrow.effects.extensions.io.async.async
-import arrow.effects.extensions.io.monad.monad
-import arrow.effects.extensions.io.monadDefer.binding
-import arrow.effects.fix
+import arrow.fx.IO
+import arrow.fx.ForIO
+import arrow.fx.MVar
+import arrow.fx.extensions.fx
+import arrow.fx.extensions.io.async.async
 import arrow.higherkind
 import arrow.optics.Lens
 import indi.yume.tools.yroute.*
@@ -81,7 +76,7 @@ fun <S, T> routeFromIO(io: IO<T>): YRoute<S, T> =
 
 fun <S, R, R2> YRoute<S, R>.flatMapR(f: (R) -> YRoute<S, R2>): YRoute<S, R2> =
     routeF { state, cxt ->
-        binding {
+        IO.fx {
             val (newState1, result1) = !this@flatMapR.runRoute(state, cxt)
 
             when (result1) {
@@ -95,7 +90,7 @@ fun <S, R, R2> YRoute<S, R>.andThen(r2: YRoute<S, R2>): YRoute<S, R2> = flatMapR
 
 fun <S1, S2, R> YRoute<S1, Lens<S1, S2>>.composeState(route: YRoute<S2, R>): YRoute<S1, R> =
     routeF { state1, cxt ->
-        binding {
+        IO.fx {
             val (innerState1, lensResult) = !this@composeState.runRoute(state1, cxt)
 
             when (lensResult) {
@@ -148,7 +143,7 @@ fun <S : Any, R> YRoute<S, R>.stateNullable(tag: String = "stateNullable"): YRou
 
 infix fun <S, R1, R2> YRoute<S, R1>.compose(route: YRoute<S, R2>): YRoute<S, Tuple2<R1, R2>> =
         routeF { state, cxt ->
-            binding {
+            IO.fx {
                 val (tuple2) = this@compose.runRoute(state, cxt)
                 val (innerState, resultT1) = tuple2
 
@@ -164,7 +159,7 @@ infix fun <S, R1, R2> YRoute<S, R1>.compose(route: YRoute<S, R2>): YRoute<S, Tup
 
 fun <S, T1, R> YRoute<S, T1>.transform(f: (S, RouteCxt, T1) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
     routeF { state, cxt ->
-        binding {
+        IO.fx {
             val (tuple2) = this@transform.runRoute(state, cxt)
             val (newState, resultT1) = tuple2
 
@@ -179,7 +174,7 @@ fun <S1, S2, R> YRoute<S1, R>.mapStateF(lensF: () -> Lens<S2, S1>): YRoute<S2, R
     routeF { state2, cxt ->
         val lens = lensF()
         val state1 = lens.get(state2)
-        binding {
+        IO.fx {
             val (newState1, result) = !this@mapStateF.runRoute(state1, cxt)
             val newState2 = lens.set(state2, newState1)
             newState2 toT result
@@ -189,7 +184,7 @@ fun <S1, S2, R> YRoute<S1, R>.mapStateF(lensF: () -> Lens<S2, S1>): YRoute<S2, R
 fun <S1, S2, R> YRoute<S1, R>.mapState(lens: Lens<S2, S1>): YRoute<S2, R> =
     routeF { state2, cxt ->
         val state1 = lens.get(state2)
-        binding {
+        IO.fx {
             val (newState1, result) = !this@mapState.runRoute(state1, cxt)
             val newState2 = lens.set(state2, newState1)
             newState2 toT result
@@ -200,7 +195,7 @@ fun <S1 : Any, S2, R> YRoute<S1, R>.mapStateNullable(lens: Lens<S2, S1?>): YRout
     routeF { state2, cxt ->
         val state1 = lens.get(state2)
             ?: return@routeF IO.just(state2 toT Fail("mapStateNullable | Can not get target State, get target State result is null from lens."))
-        binding {
+        IO.fx {
             val (newState1, result) = !this@mapStateNullable.runRoute(state1, cxt)
             val newState2 = lens.set(state2, newState1)
             newState2 toT result
@@ -220,7 +215,7 @@ fun <S, R : Any> YRoute<S, R?>.resultNonNull(tag: String = "resultNonNull()"): Y
 
 fun <S, T1, R> YRoute<S, T1>.composeWith(f: (S, RouteCxt, T1) -> IO<Tuple2<S, YResult<R>>>): YRoute<S, R> =
     routeF { state, cxt ->
-        binding {
+        IO.fx {
             val (tuple2) = this@composeWith.runRoute(state, cxt)
             val (newState, resultT1) = tuple2
 
@@ -233,7 +228,7 @@ fun <S, T1, R> YRoute<S, T1>.composeWith(f: (S, RouteCxt, T1) -> IO<Tuple2<S, YR
 
 fun <S1, S2, R1, R2> zipRoute(route1: YRoute<S1, R1>, route2: YRoute<S2, R2>): YRoute<Tuple2<S1, S2>, Tuple2<R1, R2>> =
     routeF { (state1, state2), cxt ->
-        binding {
+        IO.fx {
             val (newState1, result1) = !route1.runRoute(state1, cxt)
             val (newState2, result2) = !route2.runRoute(state2, cxt)
             (newState1 toT newState2) toT result1.flatMap { r1 -> result2.map { r2 -> r1 toT r2 } }
@@ -250,7 +245,7 @@ fun <S, R1, R2> YRoute<S, Tuple2<R1, R2>>.switchResult(): YRoute<S, Tuple2<R2, R
 
 infix fun <S, R1, R2> YRoute<S, R1>.zipWith(route2: YRoute<S, R2>): YRoute<S, Tuple2<R1, R2>> =
     routeF { state, cxt ->
-        binding {
+        IO.fx {
             val (newState, resultT1) = !this@zipWith.runRoute(state, cxt)
 
             when (resultT1) {
@@ -263,7 +258,7 @@ infix fun <S, R1, R2> YRoute<S, R1>.zipWith(route2: YRoute<S, R2>): YRoute<S, Tu
 
 fun <S, SS, R> YRoute<S, YRoute<SS, R>>.flatten(lens: Lens<S, SS>): YRoute<S, R> =
     routeF { state, cxt ->
-        binding {
+        IO.fx {
             val (innerS, innerYRouteResult) = !this@flatten.runRoute(state, cxt)
 
             val sstate = lens.get(innerS)
@@ -333,13 +328,13 @@ class MainCoreEngine<S>(val state: MVar<ForIO, S>,
 
     @CheckResult
     override fun <R> run(route: YRoute<S, R>): IO<YResult<R>> =
-        IO.async { connection, cb ->
+        IO.cancelable { cb ->
             val io = runAsync(route) { cb(it.right()) }
             val disposable = io.unsafeRunAsyncCancellable(cb = { if (it is Either.Left) cb(it) })
-            connection.push(IO { disposable() })
+            IO { disposable() }
         }
 
-    private fun <R> runActual(route: YRoute<S, R>): IO<YResult<R>> = binding {
+    private fun <R> runActual(route: YRoute<S, R>): IO<YResult<R>> = IO.fx {
         val code = Random.nextInt()
         Logger.d("CoreEngine", "================>>>>>>>>>>>> $code")
         Logger.d("CoreEngine", "start run: route=$route")
@@ -393,8 +388,8 @@ class MainCoreEngine<S>(val state: MVar<ForIO, S>,
         }
 
     companion object {
-        fun <S> create(app: Application, initState: S): IO<MainCoreEngine<S>> = binding {
-            val mvar = !MVar.uncancelableOf(initState, IO.async())
+        fun <S> create(app: Application, initState: S): IO<MainCoreEngine<S>> = IO.fx {
+            val mvar = !MVar(initState)
             val cxt = !RouteCxt.create(app)
             MainCoreEngine(mvar, cxt)
         }
@@ -461,7 +456,7 @@ class RouteCxt private constructor(val app: Application) {
                 globalActivityLife.makeState(ActivityLifeEvent.OnDestroy(activity))
         }
 
-        override fun onActivitySaveInstanceState(activity: Activity?, outState: Bundle?) {
+        override fun onActivitySaveInstanceState(activity: Activity?, outState: Bundle) {
             if (activity != null)
                 globalActivityLife.makeState(ActivityLifeEvent.OnSaveInstanceState(activity, outState))
         }

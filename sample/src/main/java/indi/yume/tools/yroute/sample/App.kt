@@ -1,7 +1,7 @@
 package indi.yume.tools.yroute.sample
 
 import android.app.Application
-import arrow.effects.IO
+import arrow.fx.IO
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.MainCoreEngine
 import indi.yume.tools.yroute.datatype.YResult
