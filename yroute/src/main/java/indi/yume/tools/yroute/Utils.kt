@@ -175,17 +175,10 @@ fun <T> type(): TypeCheck<T> = typeFake as TypeCheck<T>
 
 fun <T> Maybe<T>.toIO(): IO<Option<T>> = map { it.some() }.toSingle(none()).toIO()
 
-fun <T> Single<T>.toIO(): IO<T> = IO.async<Pair<T, RxDisposable?>> { cb ->
-    var disposable: RxDisposable? = null
-    disposable = subscribe({ cb((it to disposable).right()) }, { cb(it.left()) })
-    Unit
-}.bracketCase(
-        release = { (_, disposable), exitCase ->
-            disposable?.dispose()
-            IO.unit
-        },
-        use = { IO.just(it.first) }
-)
+fun <T> Single<T>.toIO(): IO<T> = IO.cancelable { cb ->
+    val disposable = subscribe({ cb(it.right()) }, { cb(it.left()) })
+    IO { disposable.dispose() }
+}
 
 fun Completable.toIO(): IO<Unit> = toSingleDefault(Unit).toIO()
 
