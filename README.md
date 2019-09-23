@@ -59,7 +59,7 @@ allprojects {
 Step2: 在工程中添加依赖：
 ```groovy
 dependencies {
-    implementation 'com.github.Yumenokanata:YRoute:-SNAPSHOT'
+    implementation 'com.github.Yumenokanata:YRoute:x.y.z'
 }
 ```
 
