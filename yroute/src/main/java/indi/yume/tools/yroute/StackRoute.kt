@@ -1399,7 +1399,7 @@ object StackRoute {
             where F : Fragment, F : StackFragment, T : StackType<F> =
             foldForFragState<F, Boolean>(
                     single = routeFromState { s ->
-                        s.stack.list.foldRight(false) { i, b -> b || i.t.onBackPressed() }
+                        (s.stack.list.lastOrNull()?.t?.onBackPressed() ?: false)
                                 || host.onBackPressed(s.stack.list.size)
                     },
                     table = routeFromState { s ->
@@ -1407,7 +1407,7 @@ object StackRoute {
                         val currentStack = s.stack.table[currentTag]
 
                         (if (currentTag != null && !currentStack.isNullOrEmpty())
-                            currentStack.foldRight(false) { i, b -> b || i.t.onBackPressed() }
+                            currentStack.lastOrNull()?.t?.onBackPressed() ?: false
                         else false) || host.onBackPressed(currentStack?.size ?: 0)
                     }
             ) runAtA host
