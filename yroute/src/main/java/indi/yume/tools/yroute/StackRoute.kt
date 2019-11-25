@@ -704,6 +704,7 @@ object StackRoute {
                 val targetTag = stackTag ?: oldStackState.current?.first ?: oldStackState.defaultTag
 
                 IO.fx {
+                    // TODO 在非当前Tag启动Fragment的时候不应该先切换
                     val innerState =
                             if (oldStackState.current == null || oldStackState.current.first != stackTag) {
                                 val (state, beforeFrag) = !switchStackAtTable<F>(targetTag, true).runRoute(vd, cxt)
@@ -873,6 +874,7 @@ object StackRoute {
                                 }
 
                                 val newItem = FItem<F>(result.t, CoreID.get(), targetTag, null)
+                                if (result.t is StackFragment) result.t.controller.hashTag = newItem.hashTag
                                 vd.copy(
                                     state = vd.state.copy(
                                         table = stackState.table + (targetTag to targetStack + newItem),
@@ -1202,6 +1204,7 @@ object StackRoute {
                                     }.toList()
 
                                     val newItem = FItem<F>(result.t, CoreID.get(), currentTag, null)
+                                    if (result.t is StackFragment) result.t.controller.hashTag = newItem.hashTag
                                     state.copy(state = stack.copy(
                                             table = stack.table + (currentTag to listOf(newItem)),
                                             current = currentTag to newItem)) toT stackTranResult(cbIOs, Success(true))
