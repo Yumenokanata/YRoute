@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.annotation.CallSuper
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
+import arrow.core.Either
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.sample.App
@@ -21,6 +22,8 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
 
     override var controller: FragController = FragController.defaultController()
 
+    open val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
+
     init {
         bindFragmentLife()
                 .doOnNext { Logger.d("---> ${this::class.java.simpleName}", it.toString()) }
@@ -28,6 +31,13 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (savedInstanceState != null) StackRoute.run {
+            SaveInstanceFragmentUtil.routeRestore<BaseFragment>(this@BaseFragment,
+                    savedInstanceState) runAtF this@BaseFragment
+        }.start(core).flattenForYRoute().unsafeRunAsync { either ->
+            if (either is Either.Left) either.a.printStackTrace()
+        }
+
         super.onCreate(savedInstanceState)
         makeState(FragmentLifeEvent.OnCreate(this, savedInstanceState))
     }
@@ -61,6 +71,17 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
         makeState(FragmentLifeEvent.OnResume(this))
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        StackRoute.run {
+            SaveInstanceFragmentUtil.routeSave<BaseFragment>(this@BaseFragment,
+                    outState) runAtF this@BaseFragment
+        }.start(core).flattenForYRoute().unsafeRunAsync { either ->
+            if (either is Either.Left) either.a.printStackTrace()
+        }
+        makeState(FragmentLifeEvent.OnSaveInstanceState(this, outState))
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         makeState(FragmentLifeEvent.OnDestroy(this))
@@ -69,7 +90,7 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
 }
 
 class FragmentPage1 : BaseFragment() {
-    val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
+    override val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         super.onCreateView(inflater, container, savedInstanceState)
@@ -134,7 +155,7 @@ class FragmentPage3 : BaseFragment() {
 class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
     override val injector: Subject<OtherParam> = FragmentParam.defaultInjecter()
 
-    val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
+    override val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         super.onCreateView(inflater, container, savedInstanceState)

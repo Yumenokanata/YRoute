@@ -101,6 +101,7 @@ sealed class FragmentLifeEvent {
     data class OnStart(val fragment: Fragment) : FragmentLifeEvent()
     data class OnResume(val fragment: Fragment) : FragmentLifeEvent()
     data class OnDestroy(val fragment: Fragment) : FragmentLifeEvent()
+    data class OnSaveInstanceState(val fragment: Fragment, val outState: Bundle) : FragmentLifeEvent()
     data class OnLowMemory(val fragment: Fragment): FragmentLifeEvent()
 
     // Just for StackFragment, see [StackFragment#onFragmentResult()]

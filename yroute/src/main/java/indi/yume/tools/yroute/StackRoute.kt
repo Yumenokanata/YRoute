@@ -87,12 +87,35 @@ fun ActivitiesState.putStackExtraToActState(host: StackHost<*, *>, extra: StackA
 
 data class StackActivityExtraState<F, Type : StackType<F>>(
     val activity: FragmentActivity,
-    val state: StackFragState<F, Type>)
+    val state: StackFragState<F, Type>) {
+    fun restore(activity: Activity): StackActivityExtraState<F, Type> {
+        return if (activity is FragmentActivity && activity is StackHost<*, *>) {
+            copy(activity = activity,
+                    state = state.copy(
+                            host = activity as StackHost<F, Type>,
+                            fm = activity.supportFragmentManager
+                    ))
+        } else this
+    }
+
+    fun restore(fragment: Fragment): StackActivityExtraState<F, Type> {
+        return copy(state = state.restore(fragment))
+    }
+}
 
 data class StackFragState<F, out Type : StackType<F>>(
     val host: StackHost<F, Type>,
     val stack: Type,
-    val fm: FragmentManager)
+    val fm: FragmentManager) {
+
+    fun restore(fragment: Fragment, hashTag: Long? = null): StackFragState<F, Type> {
+        return copy(stack = stack.restore(fragment) {
+            it.t == fragment
+                    || hashTag == it.hashTag
+                    || (fragment is StackFragment && fragment.controller.hashTag == it.hashTag)
+        } as Type)
+    }
+}
 
 data class AnimData(
         @AnimRes val enterAnim: Int = R.anim.fragment_left_enter,
@@ -145,9 +168,41 @@ sealed class StackType<T> {
                 Table(defaultMap = defaultMap, defaultTag = defaultTag)
         }
     }
+
+    fun restore(fragment: Any, checker: (FItem<*>) -> Boolean): StackType<T> {
+        val newT = fragment as? T ?: return this
+
+        return when(this) {
+            is Single<T> -> copy(list = list.map {
+                if (checker(it)) it.copy(t = newT)
+                else it
+            })
+            is Table<T> -> {
+                val newTable = table.mapValues { (key, list) ->
+                    list.map {
+                        if (checker(it)) it.restore(newT)
+                        else it
+                    }
+                }
+                val newCurrent = if (current?.second?.let(checker) == true) {
+                    val (tag, item) = current
+                    tag to item?.restore(newT)
+                } else current
+
+                copy(table = newTable,
+                        current = newCurrent)
+            }
+        }
+    }
 }
 
-data class FItem<T>(val t: T, val hashTag: Long, val tag: Any? = null, val anim: AnimData?)
+data class FItem<T>(val t: T, val hashTag: Long, val tag: Any? = null, val anim: AnimData?) {
+    fun restore(fragment: Any): FItem<T> {
+        val newT = fragment as? T
+        return if (newT != null) copy(t = newT)
+        else this
+    }
+}
 
 open class FragmentBuilder<out F> {
     internal var createIntent: RouteCxt.() -> Intent

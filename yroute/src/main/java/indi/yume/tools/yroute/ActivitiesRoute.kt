@@ -244,6 +244,9 @@ object ActivitiesRoute {
 
 fun CoreEngine<ActivitiesState>.bindApp(): Completable =
     routeCxt.globalActivityLife.bindActivityLife()
+        .map { event -> run(saveActivitiesInstanceState(event)).unsafeRunAsync { either ->
+            if (either is Either.Left) either.a.printStackTrace()
+        }; event }
         .map { run(globalActivityLogic(it)).unsafeRunAsync { either ->
             if (either is Either.Left) either.a.printStackTrace()
         } }
@@ -298,3 +301,24 @@ fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit>
             else -> IO.just(state)
         }.map { it toT Success(Unit) }
     }
+
+fun saveActivitiesInstanceState(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit> =
+        routeF { state, cxt ->
+            when (event) {
+                is ActivityLifeEvent.OnSaveInstanceState -> {
+                    val bundle = event.outState
+
+                    SaveInstanceActivityUtil.routeSave(bundle, event.activity)
+                            .runRoute(state, cxt)
+                }
+                is ActivityLifeEvent.OnCreate -> {
+                    val bundle = event.savedInstanceState
+                    if (bundle != null)
+                        SaveInstanceActivityUtil.routeRestore(bundle, event.activity)
+                                .runRoute(state, cxt)
+                    else
+                        IO.just(state toT Success(Unit))
+                }
+                else -> IO.just(state toT Success(Unit))
+            }
+        }
