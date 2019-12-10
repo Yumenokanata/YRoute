@@ -28,16 +28,12 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
         bindFragmentLife()
                 .doOnNext { Logger.d("---> ${this::class.java.simpleName}", it.toString()) }
                 .catchSubscribe()
+
+        commonFragmentLifeLogicDefault { core }
+                .catchSubscribe()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        if (savedInstanceState != null) StackRoute.run {
-            SaveInstanceFragmentUtil.routeRestore<BaseFragment>(this@BaseFragment,
-                    savedInstanceState) runAtF this@BaseFragment
-        }.start(core).flattenForYRoute().unsafeRunAsync { either ->
-            if (either is Either.Left) either.a.printStackTrace()
-        }
-
         super.onCreate(savedInstanceState)
         makeState(FragmentLifeEvent.OnCreate(this, savedInstanceState))
     }
@@ -73,12 +69,6 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        StackRoute.run {
-            SaveInstanceFragmentUtil.routeSave<BaseFragment>(this@BaseFragment,
-                    outState) runAtF this@BaseFragment
-        }.start(core).flattenForYRoute().unsafeRunAsync { either ->
-            if (either is Either.Left) either.a.printStackTrace()
-        }
         makeState(FragmentLifeEvent.OnSaveInstanceState(this, outState))
     }
 

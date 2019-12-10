@@ -34,6 +34,8 @@ import arrow.fx.extensions.fx
 import arrow.fx.extensions.io.monoid.combineAll
 import arrow.mtl.ReaderT
 import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
+import io.reactivex.Completable
+import io.reactivex.Observable
 
 
 //data class FragActivityData<out VD>(override val activity: FragmentActivity,
@@ -1670,3 +1672,63 @@ object StackRoute {
                 }
             }
 }
+
+fun <F> FragmentLifecycleOwner.commonFragmentLifeLogic()
+        : Observable<YRoute<StackFragState<F, StackType<F>>, Unit>> where F : Fragment =
+        bindFragmentLife()
+                .map { event -> saveAndRestoreLogic<F>(event) }
+
+fun <F> F.commonFragmentLifeLogicDefault(coreEval: () -> CoreEngine<ActivitiesState>)
+        : Completable
+        where F : Fragment, F : FragmentLifecycleOwner =
+        commonFragmentLifeLogic<F>()
+                .flatMapSingle { eventYR -> StackRoute.run {
+                    eventYR runAtF this@commonFragmentLifeLogicDefault
+                }.start(coreEval()).flattenForYRoute().toSingle() }
+                .ignoreElements()
+
+fun <F> saveAndRestoreLogic(event: FragmentLifeEvent): YRoute<StackFragState<F, StackType<F>>, Unit>
+        where F : Fragment =
+        routeF { state, cxt ->
+            val defaultResult by lazy { IO.just(state toT Success(Unit)) }
+            when (event) {
+                is FragmentLifeEvent.OnSaveInstanceState -> {
+                    SaveInstanceFragmentUtil.routeSave<F>(event.fragment, event.outState)
+                            .runRoute(state, cxt)
+                }
+                is FragmentLifeEvent.OnCreate -> {
+                    val bundle = event.savedInstanceState
+                    if (bundle != null)
+                        SaveInstanceFragmentUtil.routeRestore<F>(event.fragment,
+                                event.savedInstanceState)
+                                .runRoute(state, cxt)
+                    else
+                        defaultResult
+                }
+                is FragmentLifeEvent.OnViewCreated -> {
+                    val bundle = event.savedInstanceState
+                    if (bundle != null)
+                        routeF<StackFragState<F, StackType<F>>, Unit> { innerS, innerC -> IO.fx {
+                            if (event.fragment is StackFragment) {
+                                val isTopOfStack =
+                                        !StackRoute.foldForFragState(
+                                                StackRoute.getTopOfStackForSingle<F>(),
+                                                StackRoute.getTopOfStackForTable<F>()
+                                        ).mapResult { it == event.fragment }
+                                                .runRoute(innerS, innerC)
+
+                                if (isTopOfStack.b.toEither().orNull() == true)
+                                    !effect {
+                                        event.fragment.onShow(
+                                                OnShowMode.OnRestore(event.savedInstanceState))
+                                    }
+                            }
+
+                            innerS toT Success(Unit)
+                        } }.runRoute(state, cxt)
+                    else
+                        defaultResult
+                }
+                else -> defaultResult
+            }
+        }

@@ -127,6 +127,7 @@ sealed class OnShowMode {
     object OnSwitch : OnShowMode()
     object OnCreate : OnShowMode()
     object OnCreateAfterAnim : OnShowMode()
+    data class OnRestore(val savedInstanceState: Bundle) : OnShowMode()
 }
 //</editor-fold>
 

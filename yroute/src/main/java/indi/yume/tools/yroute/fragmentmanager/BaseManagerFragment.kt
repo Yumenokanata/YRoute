@@ -22,15 +22,12 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
     override val lifeSubject: Subject<FragmentLifeEvent> = FragmentLifecycleOwner.defaultLifeSubject()
 
     override var controller: FragController = FragController.defaultController()
+    init {
+        commonFragmentLifeLogicDefault { core }
+                .catchSubscribe()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        if (savedInstanceState != null) StackRoute.run {
-            SaveInstanceFragmentUtil.routeRestore<F>(this@BaseManagerFragment,
-                    savedInstanceState) runAtF this@BaseManagerFragment
-        }.start(core).flattenForYRoute().unsafeRunAsync { either ->
-            if (either is Either.Left) either.a.printStackTrace()
-        }
-
         super.onCreate(savedInstanceState)
         makeState(FragmentLifeEvent.OnCreate(this, savedInstanceState))
     }
@@ -77,12 +74,6 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        StackRoute.run {
-            SaveInstanceFragmentUtil.routeSave<F>(this@BaseManagerFragment,
-                    outState) runAtF this@BaseManagerFragment
-        }.start(core).flattenForYRoute().unsafeRunAsync { either ->
-            if (either is Either.Left) either.a.printStackTrace()
-        }
         makeState(FragmentLifeEvent.OnSaveInstanceState(this, outState))
     }
 

@@ -86,7 +86,7 @@ fun <S, R, R2> YRoute<S, R>.flatMapR(f: (R) -> YRoute<S, R2>): YRoute<S, R2> =
         }
     }
 
-fun <S, R, R2> YRoute<S, R>.andThen(r2: YRoute<S, R2>): YRoute<S, R2> = flatMapR { r2 }
+infix fun <S, R, R2> YRoute<S, R>.andThen(r2: YRoute<S, R2>): YRoute<S, R2> = flatMapR { r2 }
 
 fun <S1, S2, R> YRoute<S1, Lens<S1, S2>>.composeState(route: YRoute<S2, R>): YRoute<S1, R> =
     routeF { state1, cxt ->
