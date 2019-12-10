@@ -9,6 +9,7 @@ import arrow.fx.IO
 import indi.yume.tools.yroute.datatype.Success
 import indi.yume.tools.yroute.datatype.YRoute
 import indi.yume.tools.yroute.datatype.routeF
+import java.util.concurrent.TimeUnit
 
 typealias SaveKey = String
 
@@ -115,7 +116,7 @@ object SaveInstanceFragmentUtil {
     const val INTENT_KEY__FRAGMENT_TAG = "intent_key__fragment_tag"
 
     val lock = this
-    private var savedMap: Map<Long, FragController> = emptyMap()
+    private var savedMap: Map<Long, FragSaveData> = emptyMap()
 
     fun save(bundle: Bundle, state: StackFragState<*, *>, fragment: Fragment) {
         val stack = state.stack
@@ -130,7 +131,11 @@ object SaveInstanceFragmentUtil {
         }
         if (target != null) {
             if (fragment is StackFragment) synchronized(lock) {
-                savedMap = savedMap + (target.hashTag to fragment.controller)
+                val param = if (fragment is FragmentParam<*>)
+                    fragment.injector.firstElement().timeout(100, TimeUnit.MILLISECONDS)
+                            .blockingGet()
+                else null
+                savedMap = savedMap + (target.hashTag to FragSaveData(fragment.controller, param))
             }
             bundle.putLong(INTENT_KEY__FRAGMENT_TAG, target.hashTag)
         }
@@ -143,8 +148,12 @@ object SaveInstanceFragmentUtil {
 
         return if (tag != null) {
             if (fragment is StackFragment) synchronized(lock) {
-                val savedController = savedMap[tag]
-                if (savedController != null) fragment.controller = savedController
+                val savedData = savedMap[tag]
+                if (savedData != null) {
+                    fragment.controller = savedData.controller
+                    if (fragment is FragmentParam<*> && savedData.param != null)
+                        fragment.unsafePutParam(savedData.param)
+                }
                 savedMap = savedMap - tag
             }
             oldState.restore(fragment, tag)
@@ -162,4 +171,9 @@ object SaveInstanceFragmentUtil {
                 val newState = restore(bundle, state, fragment)
                 IO.just((newState as StackFragState<F, StackType<F>>) toT Success(Unit))
             }
+
+    data class FragSaveData(
+            val controller: FragController,
+            val param: Any?
+    )
 }

@@ -261,6 +261,11 @@ open class FragmentBuilder<out F> {
 interface FragmentParam<T> {
     val injector: Subject<T>
 
+    fun unsafePutParam(param: Any) {
+        val p = param as? T
+        p?.let { injector.onNext(p) }
+    }
+
     companion object {
         fun <T> defaultInjecter(): Subject<T> =
             BehaviorSubject.create<T>().toSerialized()
