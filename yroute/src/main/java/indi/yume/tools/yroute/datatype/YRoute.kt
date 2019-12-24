@@ -10,6 +10,7 @@ import arrow.fx.ForIO
 import arrow.fx.MVar
 import arrow.fx.extensions.fx
 import arrow.fx.extensions.io.async.async
+import arrow.fx.fix
 import arrow.higherkind
 import arrow.optics.Lens
 import indi.yume.tools.yroute.*
@@ -340,11 +341,20 @@ class MainCoreEngine<S>(val state: MVar<ForIO, S>,
         Logger.d("CoreEngine", "start run: route=$route")
         val oldState = !state.take()
         Logger.d("CoreEngine", "get oldState: $oldState")
-        val (newState, result) = !route.runRoute(oldState, routeCxt)
-            .handleError {
-                // TODO force restore all state.
-                oldState toT Fail("A very serious exception has occurred when run route, Status may become out of sync.", it)
-            }
+
+        val timeout = YRouteConfig.taskRunnerTimeout
+
+        val (newState, result) = !if (timeout == null) {
+            route.runRoute(oldState, routeCxt)
+        } else {
+            route.runRoute(oldState, routeCxt).fix().toSingle()
+                    .timeout(timeout, TimeUnit.MILLISECONDS)
+                    .toIO()
+        }.handleError {
+            // TODO force restore all state.
+            oldState toT Fail("A very serious exception has occurred when run route, Status may become out of sync.", it)
+        }
+
         Logger.d("CoreEngine", "return result: result=$result, newState=$newState")
         !state.put(newState)
         if (newState == oldState)
@@ -377,9 +387,7 @@ class MainCoreEngine<S>(val state: MVar<ForIO, S>,
     @CheckResult
     fun start(): Completable = streamSubject
         .concatMapCompletable { completable ->
-            val timeout = YRouteConfig.taskRunnerTimeout
-            if (timeout == null) completable
-            else completable.timeout(timeout, TimeUnit.MILLISECONDS)
+            completable
                 .doOnError { it.printStackTrace() }
                 .onErrorComplete()
                 .doFinally {
