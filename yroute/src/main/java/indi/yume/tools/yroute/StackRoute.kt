@@ -1074,11 +1074,11 @@ object StackRoute {
                     val newState = state.copy(state = stack.copy(
                             table = stack.table + (targetTag to (stack.table[targetTag]?.filter { it.hashTag != targetF.hashTag }
                                     ?: emptyList())),
-                            current = if (stack.current?.second?.hashTag == targetF.hashTag) backF?.let { targetTag to it } else stack.current))
+                            current = if (stack.current?.second?.hashTag == targetF.hashTag) targetTag to backF else stack.current))
 
                     val cbIOs = !IO { sequence {
                         state.ft.remove(targetF.t)
-                        if (backF != null) {
+                        if (backF != null && stack.current?.first == targetTag) {
                             state.ft.show(backF.t)
                             if (backF.t is StackFragment) yield(IO { backF.t.onShow(OnShowMode.OnBack) })
                         }
@@ -1184,13 +1184,17 @@ object StackRoute {
                     !dealFinishForResult(targetF.t, backF.t)
 
                     val animData = targetF.anim
-                    val cbIOs = if (animData == null) {
+                    val cbIOs = if (animData == null || stack.current?.first != targetTag) {
                         // NoAnim
                         !IO {
                             state.ft.remove(targetF.t)
-                            state.ft.show(backF.t)
+                            if (stack.current?.first == targetTag)
+                                state.ft.show(backF.t)
                         }
-                        listOf(IO { backF.t.onShow(OnShowMode.OnBack) })
+
+                        if (stack.current?.first == targetTag)
+                            listOf(IO { backF.t.onShow(OnShowMode.OnBack) })
+                        else emptyList()
                     } else {
                         !state.fm.popFragWithAnim(animData, backF.t, targetF.t)
                         emptyList()
@@ -1302,14 +1306,15 @@ object StackRoute {
                 }
             }
 
-    fun <F> backToTopForTable(): YRoute<StackInnerState<StackType.Table<F>>, IO<YResult<Boolean>>>
+    fun <F> backToTopForTable(targetTag: TableTag? = null): YRoute<StackInnerState<StackType.Table<F>>, IO<YResult<Boolean>>>
             where F : Fragment =
             routeF { state, cxt ->
                 val stack = state.state
                 val currentTag = stack.current?.first
-                val targetList = stack.table[currentTag]
+                val targetT = targetTag ?: currentTag
+                val targetList = stack.table[targetT]
 
-                if (currentTag == null || targetList.isNullOrEmpty())
+                if (targetT == null || targetList.isNullOrEmpty())
                     return@routeF IO.just(state toT stackTranResult(Success(false)))
 
                 IO.fx {
@@ -1317,8 +1322,11 @@ object StackRoute {
                     val cbIOs = !IO { sequence {
                         for (item in targetList.drop(1).reversed())
                             state.ft.remove(item.t)
-                        state.ft.show(topF.t)
-                        if (topF.t is StackFragment) yield(IO { topF.t.onShow(OnShowMode.OnBack) })
+
+                        if (targetTag == currentTag) {
+                            state.ft.show(topF.t)
+                            if (topF.t is StackFragment) yield(IO { topF.t.onShow(OnShowMode.OnBack) })
+                        }
                     }.toList() }
 
                     val topBackF = targetList.getOrNull(1)?.t
@@ -1326,8 +1334,9 @@ object StackRoute {
                         !dealFinishForResult(topBackF, topF.t)
 
                     state.copy(state = stack.copy(
-                            table = stack.table + (currentTag to listOf(topF)),
-                            current = currentTag to topF)) toT stackTranResult(cbIOs, Success(true))
+                            table = stack.table + (targetT to listOf(topF)),
+                            current = if (targetT == currentTag) currentTag to topF else stack.current)) toT
+                            stackTranResult(cbIOs, Success(true))
                 }
             }
 
