@@ -1323,7 +1323,7 @@ object StackRoute {
                         for (item in targetList.drop(1).reversed())
                             state.ft.remove(item.t)
 
-                        if (targetTag == currentTag) {
+                        if (targetT == currentTag) {
                             state.ft.show(topF.t)
                             if (topF.t is StackFragment) yield(IO { topF.t.onShow(OnShowMode.OnBack) })
                         }
