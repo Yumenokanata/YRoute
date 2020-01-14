@@ -1314,7 +1314,7 @@ object StackRoute {
                 val targetT = targetTag ?: currentTag
                 val targetList = stack.table[targetT]
 
-                if (targetT == null || targetList.isNullOrEmpty())
+                if (targetT == null || targetList.isNullOrEmpty() || targetList.size <= 1)
                     return@routeF IO.just(state toT stackTranResult(Success(false)))
 
                 IO.fx {
