@@ -2,12 +2,9 @@ package indi.yume.tools.yroute.fragmentmanager
 
 import androidx.fragment.app.Fragment
 import arrow.fx.IO
-import indi.yume.tools.yroute.StackFragment
-import indi.yume.tools.yroute.StackRoute
-import indi.yume.tools.yroute.StackType
+import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.mapResult
 import indi.yume.tools.yroute.datatype.start
-import indi.yume.tools.yroute.flattenForYRoute
 
 abstract class BaseTableActivity<F> : BaseFragmentManagerActivity<F, StackType.Table<F>>()
         where F : Fragment, F : StackFragment
@@ -36,6 +33,11 @@ fun <A, F> A.switchToStackByTag(tag: String): IO<Boolean>
 fun <A, F> A.clearCurrentStack(resetStack: Boolean = false): IO<Boolean>
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> = StackRoute.run {
     routeClearCurrentStackForTable<F>(resetStack) runAtA this@clearCurrentStack
+}.start(core).flattenForYRoute()
+
+fun <A, F> A.clearTargetStack(targetTag: TableTag, resetStack: Boolean = false): IO<Boolean>
+        where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> = StackRoute.run {
+    routeClearStackForTable<F>(targetTag, resetStack) runAtA this@clearTargetStack
 }.start(core).flattenForYRoute()
 
 fun <A, F> A.backToTop(): IO<Boolean>

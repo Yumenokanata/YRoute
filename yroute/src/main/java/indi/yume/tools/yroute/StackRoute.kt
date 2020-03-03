@@ -1241,17 +1241,30 @@ object StackRoute {
                 val stack = state.state
                 val currentTag = stack.current?.first ?: return@routeF IO.just(state toT stackTranResult(Success(false)))
 
+                clearStackForTable<F>(currentTag, resetStack = resetStack).runRoute(state, cxt)
+            }
+
+    fun <F> clearStackForTable(targetTag: TableTag, resetStack: Boolean = false): YRoute<StackInnerState<StackType.Table<F>>, IO<YResult<Boolean>>>
+            where F : Fragment =
+            routeF { state, cxt ->
+                val stack = state.state
+                if (stack.table[targetTag].isNullOrEmpty())
+                    return@routeF IO.just(state toT stackTranResult(Success(false)))
+
+                val currentTag = stack.current?.first
+
                 IO.fx {
                     !IO {
-                        for (item in stack.table[currentTag]?.reversed() ?: emptyList())
+                        for (item in stack.table[targetTag]?.reversed() ?: emptyList())
                             state.ft.remove(item.t)
                     }
 
                     val clearStackState = state.copy(state = stack.copy(
-                            table = stack.table + (currentTag to emptyList()),
-                            current = currentTag to null))
+                            table = stack.table + (targetTag to emptyList()),
+                            current = if (targetTag == currentTag) currentTag to null
+                                      else stack.current))
 
-                    if (resetStack) {
+                    if (resetStack && targetTag == currentTag) {
                         val defaultFragClazz: Class<out F>? = stack.defaultMap[currentTag]
 
                         if (defaultFragClazz != null) {
@@ -1549,6 +1562,10 @@ object StackRoute {
     fun <F> routeClearCurrentStackForTable(resetStack: Boolean = false): YRoute<StackFragState<F, StackType.Table<F>>, Boolean>
             where F : Fragment =
             clearCurrentStackForTable<F>(resetStack).mapInner(lens = stackTypeLens<F, StackType.Table<F>>()).stackTranIO()
+
+    fun <F> routeClearStackForTable(targetTag: TableTag, resetStack: Boolean = false): YRoute<StackFragState<F, StackType.Table<F>>, Boolean>
+            where F : Fragment =
+            clearStackForTable<F>(targetTag, resetStack).mapInner(lens = stackTypeLens<F, StackType.Table<F>>()).stackTranIO()
 
     fun <F> routeBackToTopForSingle(): YRoute<StackFragState<F, StackType.Single<F>>, Boolean>
             where F : Fragment =
