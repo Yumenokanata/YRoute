@@ -3,7 +3,6 @@ package indi.yume.tools.yroute.sample.fragmentmanager
 import android.os.Bundle
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.CoreEngine
-import indi.yume.tools.yroute.datatype.start
 import indi.yume.tools.yroute.fragmentmanager.BaseSingleActivity
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R

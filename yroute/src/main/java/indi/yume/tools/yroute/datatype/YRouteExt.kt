@@ -1,12 +1,6 @@
 package indi.yume.tools.yroute.datatype
 
-import arrow.Kind
 import arrow.core.*
-
-import arrow.extension
-import arrow.fx.IO
-import arrow.fx.extensions.fx
-import arrow.fx.fix
 import arrow.typeclasses.*
 import arrow.typeclasses.suspended.monad.commutative.safe.Fx
 import indi.yume.tools.yroute.YRouteException
@@ -25,19 +19,17 @@ interface YRouteApplicative<S> : Applicative<YRoutePartialOf<S>>, YRouteFunctor<
             fix().mapResult(f)
 
     override fun <A> just(a: A): YRoute<S, A> =
-            routeF { s, cxt -> IO.just(s toT Success(a)) }
+            routeF { s, cxt -> s toT Success(a) }
 
     override fun <A, B> YRouteOf<S, A>.ap(ff: YRouteOf<S, (A) -> B>): YRoute<S, B> =
             routeF { s, routeCxt ->
-                IO.fx {
-                    val (innerState, aResult) = !fix().runRoute(s, routeCxt)
-                    when(aResult) {
-                        is Success -> {
-                            val (newState, fResult) = !ff.fix().runRoute(innerState, routeCxt)
-                            newState toT fResult.map { it(aResult.t) }
-                        }
-                        is Fail -> innerState toT aResult
+                val (innerState, aResult) = fix().runRoute(s, routeCxt)
+                when (aResult) {
+                    is Success -> {
+                        val (newState, fResult) = ff.fix().runRoute(innerState, routeCxt)
+                        newState toT fResult.map { it(aResult.t) }
                     }
+                    is Fail -> innerState toT aResult
                 }
             }
 
@@ -59,32 +51,32 @@ interface YRouteMonad<S> : Monad<YRoutePartialOf<S>>, YRouteApplicative<S> {
             routeF { s, routeCxt ->
                 var newState = s
 
-                IO.tailRecM(a) { aInner ->
-                    f(aInner).fix().runRoute(newState, routeCxt).map { (innerState, result) ->
-                        newState = innerState
-                        when (result) {
-                            is Fail -> (innerState toT result).right()
-                            is Success -> when(result.t) {
-                                is Either.Left -> result.t.a.left()
-                                is Either.Right -> (innerState toT Success(result.t.b)).right()
-                            }
+                tailrec suspend fun runner(param: A): Tuple2<S, YResult<B>> {
+                    val (innerState, result) = f(param).fix().runRoute(newState, routeCxt)
+                    newState = innerState
+
+                    return when (result) {
+                        is Fail -> innerState toT result
+                        is Success -> when(result.t) {
+                            is Either.Left -> runner(result.t.a)
+                            is Either.Right -> innerState toT Success(result.t.b)
                         }
                     }
                 }
+
+                runner(a)
             }
 
     override fun <A, B> YRouteOf<S, A>.ap(ff: YRouteOf<S, (A) -> B>): YRoute<S, B> =
             routeF { s, routeCxt ->
-                IO.fx {
-                    val (innerState, aResult) = !fix().runRoute(s, routeCxt)
-                    when(aResult) {
-                        is Success -> {
-                            val (newState, fResult) = !ff.fix().runRoute(innerState, routeCxt)
-                            newState toT fResult.map { it(aResult.t) }
-                        }
-                        is Fail -> innerState toT aResult
+                val (innerState, aResult) = fix().runRoute(s, routeCxt)
+                when (aResult) {
+                    is Success -> {
+                        val (newState, fResult) = ff.fix().runRoute(innerState, routeCxt)
+                        newState toT fResult.map { it(aResult.t) }
                     }
-                }.fix()
+                    is Fail -> innerState toT aResult
+                }
             }
 
 }
@@ -93,21 +85,21 @@ interface YRouteMonad<S> : Monad<YRoutePartialOf<S>>, YRouteApplicative<S> {
 interface YRouteApplicativeError<S> : ApplicativeError<YRoutePartialOf<S>, Throwable>, YRouteApplicative<S> {
 
     override fun <A> raiseError(e: Throwable): YRouteOf<S, A> =
-            routeF { s, routeCxt -> IO.just(s toT Fail("raiseError", e)) }
+            routeF { s, routeCxt -> s toT Fail("raiseError", e) }
 
     override fun <A> YRouteOf<S, A>.handleErrorWith(f: (Throwable) -> YRouteOf<S, A>): YRoute<S, A> =
             routeF { s, routeCxt ->
-                IO.fx {
-                    val (newState, result) = !this@handleErrorWith.fix().runRoute(s, routeCxt)
-                            .handleErrorWith { t ->
-                                f(t).fix().runRoute(s, routeCxt)
-                            }
+                val (newState, result) = try {
+                    this@handleErrorWith.fix().runRoute(s, routeCxt)
+                } catch (t: Throwable) {
+                    f(t).fix().runRoute(s, routeCxt)
+                }
 
-                    when (result) {
-                        is Fail -> !f(result.error ?: YRouteException(result)).fix().runRoute(newState, routeCxt)
-                        is Success -> newState toT result
-                    }
-                }.fix()
+                when (result) {
+                    is Fail -> f(result.error
+                            ?: YRouteException(result)).fix().runRoute(newState, routeCxt)
+                    is Success -> newState toT result
+                }
             }
 }
 

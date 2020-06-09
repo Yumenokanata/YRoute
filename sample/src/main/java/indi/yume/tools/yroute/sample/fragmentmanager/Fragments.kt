@@ -14,9 +14,18 @@ import indi.yume.tools.yroute.fragmentmanager.BaseManagerFragment
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
 import io.reactivex.subjects.Subject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
-abstract class BaseFragment : BaseManagerFragment<BaseFragment>() {
+abstract class BaseFragment : BaseManagerFragment<BaseFragment>(), CoroutineScope by MainScope() {
     override val core: CoreEngine<ActivitiesState> by lazy { (activity!!.application as App).core }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cancel()
+    }
 }
 
 class FragmentPage1 : BaseFragment() {
@@ -34,26 +43,25 @@ class FragmentPage1 : BaseFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        view.findViewById<Button>(R.id.jump_other_for_result_btn).setOnClickListener {
-            startFragmentForRx(FragmentBuilder(FragmentOther::class.java)
+        view.findViewById<Button>(R.id.jump_other_for_result_btn).setOnClickListener { this@FragmentPage1.launch {
+            val result = startFragmentForRx(FragmentBuilder(FragmentOther::class.java)
                     .withParam(OtherParam("This is param from FragmentPage1.")))
-                    .toSingle().doOnSuccess {
-                        Toast.makeText(activity,
-                                "YResult from Other fragment: \nresultCode=${it.a}, data=${it.b?.getString("msg")}",
-                                Toast.LENGTH_SHORT).show()
-                    }.catchSubscribe()
-        }
 
-        view.findViewById<View>(R.id.jump_other_with_shared_view_btn).setOnClickListener {
+            Toast.makeText(activity,
+                    "YResult from Other fragment: \nresultCode=${result.a}, data=${result.b?.getString("msg")}",
+                    Toast.LENGTH_SHORT).show()
+        } }
+
+        view.findViewById<View>(R.id.jump_other_with_shared_view_btn).setOnClickListener { this@FragmentPage1.launch {
             StackRoute.run {
                 val builder: FragmentBuilder<BaseFragment> = FragmentBuilder(FragmentOther::class.java)
                         .withParam(OtherParam("This is param from FragmentPage1."))
                 startWithShared(builder, view.findViewById(R.id.page_1_search_edit)) runAtF
                         this@FragmentPage1
-            }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
+            }.startLazy(core).flattenForYRoute().let {
                 println("Shared FragmentPage1: $it")
-            })
-        }
+            }
+        } }
     }
 }
 
@@ -82,14 +90,14 @@ class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
         val view = inflater.inflate(R.layout.fragment_other, container, false)
         view.findViewById<TextView>(R.id.other_message).text = "page hash: ${hashCode()}"
 
-        view.findViewById<Button>(R.id.jump_with_anim_btn).setOnClickListener listener@{
+        view.findViewById<Button>(R.id.jump_with_anim_btn).setOnClickListener listener@{  this@FragmentOther.launch {
             startFragment(FragmentBuilder(FragmentOther::class.java)
                     .withAnimData(AnimData())
                     .withParam(OtherParam("This is param from FragmentPage1.")))
-                    .unsafeAsyncRunDefault({
+                    .let {
                         println("Start Anim FragmentOther: $it")
-                    })
-        }
+                    }
+        } }
         return view
     }
 

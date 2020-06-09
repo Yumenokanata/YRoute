@@ -1,7 +1,6 @@
 package indi.yume.tools.yroute.sample
 
 import android.app.Application
-import arrow.fx.IO
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.MainCoreEngine
 import indi.yume.tools.yroute.datatype.YResult
@@ -18,7 +17,7 @@ class App : Application() {
         super.onCreate()
 
         MainCoreEngine.apply {
-            core = create(this@App, ActivitiesState(emptyList())).unsafeRunSync()
+            core = create(this@App, ActivitiesState(emptyList()))
             core.start().catchSubscribe()
             core.bindApp().catchSubscribe()
         }
@@ -55,5 +54,5 @@ object YRouteNavi {
         this.uriRoute = uriRoute
     }
 
-    fun run(uri: String): IO<YResult<Any?>> = uriRoute.withParam(uri).start(core)
+    suspend fun run(uri: String): YResult<Any?> = uriRoute.withParam(uri).start(core)
 }

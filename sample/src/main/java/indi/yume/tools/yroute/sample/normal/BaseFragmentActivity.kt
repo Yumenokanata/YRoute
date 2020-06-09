@@ -6,8 +6,11 @@ import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import indi.yume.tools.yroute.*
 import io.reactivex.subjects.Subject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 
-abstract class BaseFragmentActivity<T : StackType<BaseFragment>> : FragmentActivity(), ActivityLifecycleOwner, StackHost<BaseFragment, T> {
+abstract class BaseFragmentActivity<T : StackType<BaseFragment>> : FragmentActivity(), ActivityLifecycleOwner, StackHost<BaseFragment, T>, CoroutineScope by MainScope() {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
 
     override var controller: StackController = StackController.defaultController()
@@ -61,5 +64,6 @@ abstract class BaseFragmentActivity<T : StackType<BaseFragment>> : FragmentActiv
         super.onDestroy()
         makeState(ActivityLifeEvent.OnDestroy(this))
         destroyLifecycle()
+        cancel()
     }
 }

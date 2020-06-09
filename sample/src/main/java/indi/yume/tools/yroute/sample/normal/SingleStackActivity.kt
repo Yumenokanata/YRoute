@@ -6,9 +6,14 @@ import indi.yume.tools.yroute.datatype.CoreEngine
 import indi.yume.tools.yroute.datatype.start
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class SingleStackActivity : BaseFragmentActivity<StackType.Single<BaseFragment>>(), StackHost<BaseFragment, StackType.Single<BaseFragment>> {
     val core: CoreEngine<ActivitiesState> by lazy { (application as App).core }
+
+    val scope = MainScope()
 
     override val fragmentId: Int = R.id.fragment_layout
 
@@ -19,9 +24,14 @@ class SingleStackActivity : BaseFragmentActivity<StackType.Single<BaseFragment>>
         setContentView(R.layout.single_stack_activity)
     }
 
-    override fun onBackPressed() {
-        StackRoute.routeOnBackPress(this).start(core).unsafeRunAsync { result ->
+    override fun onBackPressed() { scope.launch {
+        StackRoute.routeOnBackPress(this@SingleStackActivity).start(core).let { result ->
             println("onBackPressed | result=$result")
         }
+    } }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.cancel()
     }
 }

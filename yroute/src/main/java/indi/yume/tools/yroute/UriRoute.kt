@@ -1,8 +1,6 @@
 package indi.yume.tools.yroute
 
 import arrow.core.toT
-import arrow.fx.IO
-import arrow.mtl.runId
 import indi.yume.tools.yroute.datatype.Fail
 import indi.yume.tools.yroute.datatype.YRoute
 import indi.yume.tools.yroute.datatype.lazy.LazyYRoute
@@ -39,20 +37,15 @@ class RouteNaviBuilder<S>(val host: String) {
         return this
     }
 
-    fun <R> put(path: String, route: (URI) -> YRoute<S, R>): RouteNaviBuilder<S> {
-        routeMap.put(path, lazyR1(route).mapResult { it as Any? })
-        return this
-    }
-
     fun create(): RouteNavi<S> {
         val map = routeMap.toMap()
         return routeF { state, routeCxt, uriString ->
             val uri = URI(uriString)
             uri.query
-            if (uri.host != host) IO.just(state toT Fail("Host is not fit, host is $host, but uri=$uriString"))
+            if (uri.host != host) state toT Fail("Host is not fit, host is $host, but uri=$uriString")
             val targetRoute = map[uri.path]
-            if (targetRoute == null) IO.just(state toT Fail("Can not found target route from uri=$uriString"))
-            else targetRoute.runId(uri).runRoute(state, routeCxt)
+            if (targetRoute == null) state toT Fail("Can not found target route from uri=$uriString")
+            else targetRoute(uri).runRoute(state, routeCxt)
         }
     }
 }

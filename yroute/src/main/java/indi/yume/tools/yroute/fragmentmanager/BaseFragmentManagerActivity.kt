@@ -8,14 +8,16 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import arrow.core.Tuple2
-import arrow.fx.IO
-import arrow.fx.extensions.io.monad.flatten
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.CoreEngine
 import indi.yume.tools.yroute.datatype.flatMapR
 import indi.yume.tools.yroute.datatype.start
+import indi.yume.tools.yroute.datatype.startLazy
 import io.reactivex.subjects.Subject
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.rx2.await
 
 abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActivity(), ActivityLifecycleOwner, StackHost<F, T>
         where F : Fragment, F : StackFragment {
@@ -77,67 +79,69 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
     }
 
     override fun onBackPressed() {
-        StackRoute.routeOnBackPress(this).start(core).unsafeRunAsync { result ->
+        GlobalScope.launch {
+            StackRoute.routeOnBackPress(this@BaseFragmentManagerActivity).start(core)
+        }.invokeOnCompletion { result ->
             Logger.d("onBackPressed", "result=$result")
         }
     }
 
-    fun <A : Activity> start(builder: ActivityBuilder<A>): IO<A> =
-            ActivitiesRoute.routeStartActivity(builder).start(core).flattenForYRoute()
+    suspend fun <A : Activity> start(builder: ActivityBuilder<A>): A =
+            ActivitiesRoute.routeStartActivity(builder).startLazy(core).flattenForYRoute()
 
-    fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): IO<Tuple2<Int, Bundle?>> =
-            ActivitiesRoute.routeStartActivityForRx(builder).start(core).flattenForYRoute()
-                    .map { it.b.toIO() }.flatten()
+    suspend fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): Tuple2<Int, Bundle?> =
+            ActivitiesRoute.routeStartActivityForRx(builder).startLazy(core).flattenForYRoute()
+                    .b.await()
 
-    fun start(builder: FragmentBuilder<F>): IO<F> =
+    suspend fun start(builder: FragmentBuilder<F>): F =
             StackRoute.run {
                 routeStartFragment(builder) runAtA this@BaseFragmentManagerActivity
-            }.start(core).flattenForYRoute()
+            }.startLazy(core).flattenForYRoute()
 
-    fun <F, A, T> startFragmentOnNewActivity(fragIntent: Intent, activityClazz: Class<A>,
-                                             anim: AnimData? = globalDefaultAnimData): IO<Tuple2<A, F>>
+    suspend fun <F, A, T> startFragmentOnNewActivity(fragIntent: Intent, activityClazz: Class<A>,
+                                                     anim: AnimData? = globalDefaultAnimData): Tuple2<A, F>
             where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
             startFragmentOnNewActivity(
                     ActivityBuilder(activityClazz).withAnimData(anim),
                     FragmentBuilder(fragIntent))
 
-    fun <F, A, T> startFragmentOnNewActivity(activityBuilder: ActivityBuilder<A>,
-                                             builder: FragmentBuilder<F>): IO<Tuple2<A, F>>
+    suspend fun <F, A, T> startFragmentOnNewActivity(activityBuilder: ActivityBuilder<A>,
+                                                     builder: FragmentBuilder<F>): Tuple2<A, F>
             where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
             StackRoute.routeStartFragAtNewActivity(
                     activityBuilder,
                     builder)
-                    .start(core).flattenForYRoute()
+                    .startLazy(core).flattenForYRoute()
 
-    fun <F, A> startFragmentOnNewActivityForResult(fragIntent: Intent,
-                                                   activityClazz: Class<A>,
-                                                   requestCode: Int)
+    suspend fun <F, A> startFragmentOnNewActivityForResult(fragIntent: Intent,
+                                                           activityClazz: Class<A>,
+                                                           requestCode: Int)
             where F : Fragment, F : StackFragment, A : FragmentActivity, A : StackHost<F, StackType.Single<F>> =
             startFragmentOnNewActivityForResult(
                     ActivityBuilder(activityClazz),
                     FragmentBuilder(fragIntent),
                     requestCode)
 
-    fun <F, A> startFragmentOnNewActivityForResult(activityBuilder: ActivityBuilder<A>,
-                                                   builder: FragmentBuilder<F>,
-                                                   requestCode: Int)
+    suspend fun <F, A> startFragmentOnNewActivityForResult(activityBuilder: ActivityBuilder<A>,
+                                                           builder: FragmentBuilder<F>,
+                                                           requestCode: Int)
             where F : Fragment, F : StackFragment, A : FragmentActivity, A : StackHost<F, StackType.Single<F>> = StackRoute.run {
         ActivitiesRoute.routeStartActivityForResult(activityBuilder.animDataOrDefault(builder.animData), requestCode)
                 .flatMapR {
                     routeStartFragmentForResult(builder, requestCode) runAtA it
                 }
-    }.start(core).flattenForYRoute()
+    }.startLazy(core).flattenForYRoute()
 
-    fun startFragment(intent: Intent): IO<F> = startFragment(FragmentBuilder<F>(intent))
+    suspend fun startFragment(intent: Intent): F = startFragment(FragmentBuilder<F>(intent))
 
-    fun startFragment(builder: FragmentBuilder<F>): IO<F> = StackRoute.run {
+    suspend fun startFragment(builder: FragmentBuilder<F>): F = StackRoute.run {
         routeStartFragment(builder) runAtA this@BaseFragmentManagerActivity
-    }.start(core).flattenForYRoute()
+    }.startLazy(core).flattenForYRoute()
 
-    fun startFragmentForResult(intent: Intent, requestCode: Int): IO<F> =
+    suspend fun startFragmentForResult(intent: Intent, requestCode: Int): F =
             startFragmentForResult(FragmentBuilder(intent), requestCode)
 
-    fun startFragmentForResult(builder: FragmentBuilder<F>, requestCode: Int): IO<F> = StackRoute.run {
+    suspend fun startFragmentForResult(builder: FragmentBuilder<F>, requestCode: Int): F = StackRoute.run {
         routeStartFragmentForResult(builder, requestCode) runAtA this@BaseFragmentManagerActivity
-    }.start(core).flattenForYRoute()
+    }.startLazy(core).flattenForYRoute()
 }

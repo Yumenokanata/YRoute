@@ -1,37 +1,36 @@
 package indi.yume.tools.yroute.fragmentmanager
 
 import androidx.fragment.app.Fragment
-import arrow.fx.IO
 import indi.yume.tools.yroute.*
-import indi.yume.tools.yroute.datatype.start
+import indi.yume.tools.yroute.datatype.startLazy
 
 abstract class BaseSingleActivity<F> : BaseFragmentManagerActivity<F, StackType.Single<F>>()
         where F : Fragment, F : StackFragment
 
 
-fun <A, F> A.getCurrentStackSize(): IO<Int> where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> =
-        StackRoute.routeGetStackFromActivity(this).start(core).flattenForYRoute()
-                .map { it.stack.list.size }
+suspend fun <A, F> A.getCurrentStackSize(): Int where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> =
+        StackRoute.routeGetStackFromActivity(this).startLazy(core).flattenForYRoute()
+                .let { it.stack.list.size }
 
-fun <A, F> A.getCurrentFragment(): IO<F?> where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> =
-        StackRoute.routeGetStackFromActivity(this).start(core).flattenForYRoute()
-                .map { it.stack.list.lastOrNull()?.t }
+suspend fun <A, F> A.getCurrentFragment(): F? where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> =
+        StackRoute.routeGetStackFromActivity(this).startLazy(core).flattenForYRoute()
+                .let { it.stack.list.lastOrNull()?.t }
 
-fun <A, F> A.clearCurrentStack(): IO<Boolean>
+suspend fun <A, F> A.clearCurrentStack(): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> = StackRoute.run {
     routeClearCurrentStackForSingle<F>() runAtA this@clearCurrentStack
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.backToTop(): IO<Boolean>
+suspend fun <A, F> A.backToTop(): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> = StackRoute.run {
     routeBackToTopForSingle<F>() runAtA this@backToTop
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.getTopOfStack(): IO<F?>
+suspend fun <A, F> A.getTopOfStack(): F?
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> = StackRoute.run {
     getTopOfStackForSingle<F>() runAtA this@getTopOfStack
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.isTopOfStack(fragment: F): IO<Boolean>
+suspend fun <A, F> A.isTopOfStack(fragment: F): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> =
-        getTopOfStack().map { it == fragment }
+        getTopOfStack() == fragment

@@ -1,55 +1,54 @@
 package indi.yume.tools.yroute.fragmentmanager
 
 import androidx.fragment.app.Fragment
-import arrow.fx.IO
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.mapResult
-import indi.yume.tools.yroute.datatype.start
+import indi.yume.tools.yroute.datatype.startLazy
 
 abstract class BaseTableActivity<F> : BaseFragmentManagerActivity<F, StackType.Table<F>>()
         where F : Fragment, F : StackFragment
 
 
-fun <A, F> A.getCurrentStackTag(): IO<String?>
+suspend fun <A, F> A.getCurrentStackTag(): String?
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> =
-        StackRoute.routeGetStackFromActivity(this).start(core).flattenForYRoute()
-                .map { it.stack.current?.first }
+        StackRoute.routeGetStackFromActivity(this).startLazy(core).flattenForYRoute()
+                .let { it.stack.current?.first }
 
-fun <A, F> A.getCurrentStackSize(): IO<Int>
+suspend fun <A, F> A.getCurrentStackSize(): Int
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> =
-        StackRoute.routeGetStackFromActivity(this).start(core).flattenForYRoute()
-                .map { it.stack.table[it.stack.current?.first]?.size ?: 0 }
+        StackRoute.routeGetStackFromActivity(this).startLazy(core).flattenForYRoute()
+                .let { it.stack.table[it.stack.current?.first]?.size ?: 0 }
 
-fun <A, F> A.getCurrentFragment(): IO<F?>
+suspend fun <A, F> A.getCurrentFragment(): F?
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> =
-        StackRoute.routeGetStackFromActivity(this).start(core).flattenForYRoute()
-                .map { it.stack.current?.second?.t }
+        StackRoute.routeGetStackFromActivity(this).startLazy(core).flattenForYRoute()
+                .let { it.stack.current?.second?.t }
 
-fun <A, F> A.switchToStackByTag(tag: String): IO<Boolean>
+suspend fun <A, F> A.switchToStackByTag(tag: String): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> = StackRoute.run {
     routeSwitchTag<F>(tag).mapResult { it != null } runAtA this@switchToStackByTag
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.clearCurrentStack(resetStack: Boolean = false): IO<Boolean>
+suspend fun <A, F> A.clearCurrentStack(resetStack: Boolean = false): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> = StackRoute.run {
     routeClearCurrentStackForTable<F>(resetStack) runAtA this@clearCurrentStack
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.clearTargetStack(targetTag: TableTag, resetStack: Boolean = false): IO<Boolean>
+suspend fun <A, F> A.clearTargetStack(targetTag: TableTag, resetStack: Boolean = false): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> = StackRoute.run {
     routeClearStackForTable<F>(targetTag, resetStack) runAtA this@clearTargetStack
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.backToTop(): IO<Boolean>
+suspend fun <A, F> A.backToTop(): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> = StackRoute.run {
     routeBackToTopForTable<F>() runAtA this@backToTop
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.getTopOfStack(): IO<F?>
+suspend fun <A, F> A.getTopOfStack(): F?
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> = StackRoute.run {
     getTopOfStackForTable<F>() runAtA this@getTopOfStack
-}.start(core).flattenForYRoute()
+}.startLazy(core).flattenForYRoute()
 
-fun <A, F> A.isTopOfStack(fragment: F): IO<Boolean>
+suspend fun <A, F> A.isTopOfStack(fragment: F): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Table<F>> =
-        getTopOfStack().map { it == fragment }
+        getTopOfStack() == fragment

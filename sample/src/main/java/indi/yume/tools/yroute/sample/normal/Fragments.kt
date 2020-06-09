@@ -10,14 +10,17 @@ import android.widget.Toast
 import androidx.annotation.CallSuper
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
-import arrow.core.Either
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
 import io.reactivex.subjects.Subject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
-abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner {
+abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner, CoroutineScope by MainScope() {
     override val lifeSubject: Subject<FragmentLifeEvent> = FragmentLifecycleOwner.defaultLifeSubject()
 
     override var controller: FragController = FragController.defaultController()
@@ -76,6 +79,7 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner 
         super.onDestroy()
         makeState(FragmentLifeEvent.OnDestroy(this))
         destroyLifecycle()
+        cancel()
     }
 }
 
@@ -90,8 +94,8 @@ class FragmentPage1 : BaseFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        view.findViewById<Button>(R.id.jump_other_for_result_btn).setOnClickListener {
-            StackRoute.run {
+        view.findViewById<Button>(R.id.jump_other_for_result_btn).setOnClickListener { this@FragmentPage1.launch {
+            val result = StackRoute.run {
                 val requestCode = 2
                 ActivitiesRoute.routeStartActivityForResult(
                         ActivityBuilder(SingleStackActivity::class.java)
@@ -101,27 +105,27 @@ class FragmentPage1 : BaseFragment() {
                                     .withParam(OtherParam("This is param from FragmentPage1."))
                             ) runAtA it
                         }
-            }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
-                val s = it.doOnSuccess {
-                    Toast.makeText(activity,
-                            "YResult from Other fragment: \nresultCode=${it.a}, data=${it.b?.getString("msg")}",
-                            Toast.LENGTH_SHORT).show()
-                }.catchSubscribe()
+            }.startLazy(core).flattenForYRoute()
 
-                println("Shared FragmentPage1: $it")
-            })
-        }
+            val s = result.doOnSuccess {
+                Toast.makeText(activity,
+                        "YResult from Other fragment: \nresultCode=${it.a}, data=${it.b?.getString("msg")}",
+                        Toast.LENGTH_SHORT).show()
+            }.catchSubscribe()
 
-        view.findViewById<View>(R.id.jump_other_with_shared_view_btn).setOnClickListener {
+            println("Shared FragmentPage1: $it")
+        } }
+
+        view.findViewById<View>(R.id.jump_other_with_shared_view_btn).setOnClickListener { this@FragmentPage1.launch {
             StackRoute.run {
                 val builder: FragmentBuilder<BaseFragment> = FragmentBuilder(FragmentOther::class.java)
                         .withParam(OtherParam("This is param from FragmentPage1."))
                 startWithShared(builder, view.findViewById(R.id.page_1_search_edit)) runAtF
                         this@FragmentPage1
-            }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
+            }.startLazy(core).flattenForYRoute().let {
                 println("Shared FragmentPage1: $it")
-            })
-        }
+            }
+        } }
     }
 }
 
@@ -152,22 +156,22 @@ class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
         val view = inflater.inflate(R.layout.fragment_other, container, false)
         view.findViewById<TextView>(R.id.other_message).text = "page hash: ${hashCode()}"
 
-        view.findViewById<Button>(R.id.jump_with_anim_btn).setOnClickListener listener@{
-            StackRoute.run {
+        view.findViewById<Button>(R.id.jump_with_anim_btn).setOnClickListener listener@{ this@FragmentOther.launch {
+            val result = StackRoute.run {
                 val builder: FragmentBuilder<BaseFragment> = FragmentBuilder(FragmentOther::class.java)
                         .withAnimData(AnimData())
                         .withParam(OtherParam("This is param from FragmentPage1."))
 
                 routeStartFragmentForRx(builder) runAtF this@FragmentOther
-            }.start(core).flattenForYRoute().unsafeAsyncRunDefault({
-                println("Start Anim FragmentOther: $it")
-                it.doOnSuccess { (resultCode, data) ->
-                    Toast.makeText(requireContext(),
-                            "Other${hashCode()} on result: $resultCode, data=$data",
-                            Toast.LENGTH_SHORT).show()
-                }.catchSubscribe()
-            })
-        }
+            }.startLazy(core).flattenForYRoute()
+
+            println("Start Anim FragmentOther: $result")
+            result.doOnSuccess { (resultCode, data) ->
+                Toast.makeText(requireContext(),
+                        "Other${hashCode()} on result: $resultCode, data=$data",
+                        Toast.LENGTH_SHORT).show()
+            }.catchSubscribe()
+        } }
         return view
     }
 

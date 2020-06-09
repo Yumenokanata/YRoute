@@ -3,9 +3,7 @@ package indi.yume.tools.yroute
 import android.app.Activity
 import android.os.Bundle
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
 import arrow.core.toT
-import arrow.fx.IO
 import indi.yume.tools.yroute.datatype.Success
 import indi.yume.tools.yroute.datatype.YRoute
 import indi.yume.tools.yroute.datatype.routeF
@@ -102,13 +100,13 @@ object SaveInstanceActivityUtil {
     fun routeSave(bundle: Bundle, activity: Activity): YRoute<ActivitiesState, Unit> =
             routeF { state, cxt ->
                 save(bundle, state, activity)
-                IO.just(state toT Success(Unit))
+                state toT Success(Unit)
             }
 
     fun routeRestore(bundle: Bundle, activity: Activity): YRoute<ActivitiesState, Unit> =
             routeF { state, cxt ->
                 val newState = restore(bundle, state, activity)
-                IO.just(newState toT Success(Unit))
+                newState toT Success(Unit)
             }
 }
 
@@ -163,13 +161,13 @@ object SaveInstanceFragmentUtil {
     fun <F> routeSave(fragment: Fragment, bundle: Bundle): YRoute<StackFragState<F, StackType<F>>, Unit> =
             routeF { state, cxt ->
                 save(bundle, state, fragment)
-                IO.just(state toT Success(Unit))
+                state toT Success(Unit)
             }
 
     fun <F> routeRestore(fragment: Fragment, bundle: Bundle): YRoute<StackFragState<F, StackType<F>>, Unit> =
             routeF { state, cxt ->
                 val newState = restore(bundle, state, fragment)
-                IO.just((newState as StackFragState<F, StackType<F>>) toT Success(Unit))
+                (newState as StackFragState<F, StackType<F>>) toT Success(Unit)
             }
 
     data class FragSaveData(

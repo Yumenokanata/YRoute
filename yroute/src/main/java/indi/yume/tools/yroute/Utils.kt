@@ -20,13 +20,12 @@ import arrow.fx.OnCancel
 import arrow.fx.typeclasses.Disposable
 import arrow.optics.Lens
 import arrow.typeclasses.Monoid
-import indi.yume.tools.yroute.datatype.YResult
-import indi.yume.tools.yroute.datatype.Fail
-import indi.yume.tools.yroute.datatype.RouteCxt
+import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.datatype.Success
 import io.reactivex.*
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import kotlinx.coroutines.rx2.rxSingle
 import io.reactivex.disposables.Disposable as RxDisposable
 import java.lang.Exception
 import java.util.concurrent.atomic.AtomicLong
@@ -133,11 +132,20 @@ sealed class OnShowMode {
 
 class YRouteException(val fail: Fail) : Exception(fail.message, fail.error ?: Throwable("YRoute inner error."))
 
-fun <R> IO<YResult<R>>.flattenForYRoute(): IO<R> =
-        this.flatMap {
-            when (it) {
-                is Success -> IO.just(it.t)
-                is Fail -> IO.raiseError(YRouteException(it))
+suspend fun <R> SuspendP<YResult<R>>.flattenForYRoute(): R {
+    val result = this@flattenForYRoute()
+    return when (result) {
+        is Success -> result.t
+        is Fail -> throw YRouteException(result)
+    }
+}
+
+fun <R> SuspendP<YResult<R>>.flattenForYRouteLazy(): SuspendP<R> =
+        {
+            val result = this@flattenForYRouteLazy()
+            when (result) {
+                is Success -> result.t
+                is Fail -> throw YRouteException(result)
             }
         }
 
@@ -210,6 +218,41 @@ fun <T> IO<T>.toCompletable(callback: (Either<Throwable, T>) -> Unit): Completab
     }.doOnDispose { ioDisposable?.invoke() }
 }
 
+fun <R : Any> SuspendP<R>.asSingle(): Single<R> = rxSingle {
+    this@asSingle()
+}
+
+suspend fun <T> (suspend () -> T).byAttempt(): Either<Throwable, T> =
+        try {
+            this().right()
+        } catch (e: Throwable) {
+            e.left()
+        }
+
+inline fun <T> attempt(run: () -> T): Either<Throwable, T> =
+        try {
+            run().right()
+        } catch (e: Throwable) {
+            e.left()
+        }
+
+internal fun <R> constantsF0(c: R): () -> R = { c }
+
+internal fun <T, R> constantsF1(c: R): (T) -> R = { c }
+
+internal fun <T1, T2, R> constantsF2(c: R): (T1, T2) -> R = { t1, t2 -> c }
+
+internal fun <T1, T2, T3, R> constantsF3(c: R): (T1, T2, T3) -> R = { t1, t2, t3 -> c }
+
+internal fun <T1, T2, T3, T4, R> constantsF4(c: R): (T1, T2, T3, T4) -> R = { t1, t2, t3, t4 -> c }
+
+internal fun <R> constantsF0S(c: R): suspend () -> R = { c }
+
+internal fun <T, R> constantsF1S(c: R): suspend (T) -> R = { c }
+
+internal fun <T1, T2, R> constantsF2S(c: R): suspend (T1, T2) -> R = { t1, t2 -> c }
+
+
 fun Completable.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
         { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
@@ -272,7 +315,7 @@ fun <S1, S2 : Any, S3 : Any> Lens<S1, S2?>.composeNonNull(lens: Lens<S2, S3>): L
     }
 )
 
-fun FragmentManager.trans(f: FragmentTransaction.() -> Unit): IO<Unit> = IO {
+suspend fun FragmentManager.trans(f: FragmentTransaction.() -> Unit): Unit {
     val ft = beginTransaction()
     ft.f()
     ft.routeExecFT()
