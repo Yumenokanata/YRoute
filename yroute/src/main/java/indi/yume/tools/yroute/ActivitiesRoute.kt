@@ -82,7 +82,7 @@ object ActivitiesRoute {
             else (top as? Activity)?.overridePendingTransition(0, 0)
 
             Logger.d("startActivity", "wait activity.")
-            val act = cxt.bindNextActivity()
+            val act = cxt.bindNextActivity(intent)
                 .firstOrError().await()
             Logger.d("startActivity", "get activity: $act")
 
@@ -104,7 +104,7 @@ object ActivitiesRoute {
                     top.overridePendingTransition(animData.enterAnim, animData.enterStayAnimForActivity)
                 else top.overridePendingTransition(0, 0)
 
-                val act = cxt.bindNextActivity()
+                val act = cxt.bindNextActivity(intent)
                     .firstOrError().await()
 
                 vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = animData)) toT
@@ -130,7 +130,7 @@ object ActivitiesRoute {
                     top.overridePendingTransition(animData.enterAnim, animData.enterStayAnimForActivity)
                 else top.overridePendingTransition(0, 0)
 
-                val activity = cxt.bindNextActivity()
+                val activity = cxt.bindNextActivity(intent)
                     .firstOrError().await()
 
                 val newState = vd.copy(list = vd.list + ActivityData(activity, CoreID.get(), animData = animData))
@@ -194,7 +194,7 @@ object ActivitiesRoute {
 
     fun <A : Activity> routeStartActivity(builder: ActivityBuilder<A>): YRoute<ActivitiesState, A> =
         createActivityIntent<Activity, ActivitiesState>(builder)
-                .flatMapR { startActivity(it, builder.animData).ofType(type<A>()) }
+                .flatMapR { startActivity(it, builder.animData).castType(type<A>()) }
 
     fun <A : Activity> routeStartActivityForResult(builder: ActivityBuilder<A>, requestCode: Int): YRoute<ActivitiesState, A> =
         createActivityIntent<A, ActivitiesState>(builder)

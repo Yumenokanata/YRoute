@@ -2,6 +2,7 @@ package indi.yume.tools.yroute.datatype
 
 import android.app.Activity
 import android.app.Application
+import android.content.Intent
 import android.os.Bundle
 import androidx.annotation.CheckResult
 import arrow.core.*
@@ -189,7 +190,7 @@ fun <S1 : Any, S2, R> YRoute<S1, R>.mapStateNullable(lens: Lens<S2, S1?>): YRout
         newState2 toT result
     }
 
-fun <S, T, K : T> YRoute<S, T>.ofType(type: TypeCheck<K>): YRoute<S, K> =
+fun <S, T, K : T> YRoute<S, T>.castType(type: TypeCheck<K>): YRoute<S, K> =
         mapResult { it as K }
 
 fun <S, T1, R> YRoute<S, T1>.mapResult(f: (T1) -> R): YRoute<S, R> =
@@ -486,8 +487,15 @@ class RouteCxt private constructor(val app: Application) {
                 .onErrorComplete()
         }
 
-    fun bindNextActivity(): Observable<Activity> = globalActivityLife.bindActivityLife()
+    fun bindNextActivity(targetType: Intent? = null): Observable<Activity> = globalActivityLife.bindActivityLife()
         .ofType(ActivityLifeEvent.OnCreate::class.java)
+            .filter {
+                val component = targetType?.component
+                if (component != null) {
+                    val clazz = it.activity.javaClass
+                    component.className == clazz.name
+                } else true
+            }
         .map { it.activity }
 
     fun putStream(stream: Completable): Unit {

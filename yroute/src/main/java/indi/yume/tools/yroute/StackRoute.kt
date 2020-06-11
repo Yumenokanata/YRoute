@@ -541,7 +541,7 @@ object StackRoute {
                     top.overridePendingTransition(anim.enterAnim, anim.enterStayAnimForActivity)
                 else (top as? Activity)?.overridePendingTransition(0, 0)
 
-                val act = cxt.bindNextActivity()
+                val act = cxt.bindNextActivity(intent)
                         .firstOrError().await()
 
                 if (act !is StackHost<*, *> || act !is ActivityLifecycleOwner) {
@@ -735,7 +735,7 @@ object StackRoute {
                 vd.ft.add(vd.fragmentId, fragment)
                 val cbSuspends = hideSuspends + suspend {
                     fragment.bindFragmentLife()
-                            .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                            .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                             .firstElement()
                             .await()
 
@@ -773,7 +773,7 @@ object StackRoute {
                     vd.ft.add(vd.fragmentId, fragment)
                     yield(suspend {
                         fragment.bindFragmentLife()
-                            .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                            .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                             .firstElement()
                             .await()
                         fragment.onShow(OnShowMode.OnCreate)
@@ -841,7 +841,7 @@ object StackRoute {
                     vd.ft.add(vd.fragmentId, fragment)
                     val onCreateAction = suspend {
                         fragment.bindFragmentLife()
-                                .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                                .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                                 .firstElement()
                                 .await()
                         fragment.onShow(OnShowMode.OnCreate)
@@ -867,17 +867,16 @@ object StackRoute {
         }
 
         val viewEvent = targetF.bindFragmentLife()
-                .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                 .firstOrError().await()
 
         backF.onHide(OnHideMode.OnStartNew)
         targetF.onShow(OnShowMode.OnCreate)
-        startAnim(animData.enterAnim, viewEvent.view).await()
+        startAnim(animData.enterAnim, viewEvent.fragment.view)
 
         trans { hide(backF) }
         backF.onHide(OnHideMode.OnStartNewAfterAnim)
         targetF.onShow(OnShowMode.OnCreateAfterAnim)
-        println("bindFragmentLife events putFragWithAnim over")
     }
     //</editor-fold>
 
@@ -918,7 +917,7 @@ object StackRoute {
                                     vd.ft.add(vd.fragmentId, result.t)
                                     if (result.t is StackFragment) yield(suspend {
                                         result.t.bindFragmentLife()
-                                                .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                                                .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                                                 .firstElement()
                                                 .await()
                                         result.t.onShow(OnShowMode.OnCreate)
@@ -1190,7 +1189,7 @@ object StackRoute {
                                                     backF: F, targetF: F) where F : Fragment, F : StackFragment  {
         trans { show(backF) }
 
-        startAnim(animData.exitAnim, targetF.view).await()
+        startAnim(animData.exitAnim, targetF.view)
 
         trans { remove(targetF) }
         backF.onShow(OnShowMode.OnBack)
@@ -1249,7 +1248,7 @@ object StackRoute {
                                     state.ft.add(state.fragmentId, result.t)
                                     if (result.t is StackFragment) yield(suspend {
                                         result.t.bindFragmentLife()
-                                                .ofType(FragmentLifeEvent.OnViewCreated::class.java)
+                                                .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                                                 .firstElement()
                                                 .await()
                                         result.t.onShow(OnShowMode.OnCreate)
@@ -1696,16 +1695,17 @@ fun <F> saveAndRestoreLogic(event: FragmentLifeEvent): YRoute<StackFragState<F, 
                     val bundle = event.savedInstanceState
                     if (bundle != null)
                         routeF<StackFragState<F, StackType<F>>, Unit> { innerS, innerC ->
-                            if (event.fragment is StackFragment) {
+                            val eventFragment = event.fragment
+                            if (eventFragment is StackFragment) {
                                 val isTopOfStack =
                                         StackRoute.foldForFragState(
                                                 StackRoute.getTopOfStackForSingle<F>(),
                                                 StackRoute.getTopOfStackForTable<F>()
-                                        ).mapResult { it == event.fragment }
+                                        ).mapResult { it == eventFragment }
                                                 .runRoute(innerS, innerC)
 
                                 if (isTopOfStack.b.toEither().orNull() == true)
-                                    event.fragment.onShow(
+                                    eventFragment.onShow(
                                                 OnShowMode.OnRestore(event.savedInstanceState))
                             }
 

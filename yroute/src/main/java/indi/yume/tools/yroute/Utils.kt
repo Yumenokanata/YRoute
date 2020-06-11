@@ -23,12 +23,17 @@ import arrow.typeclasses.Monoid
 import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.datatype.Success
 import io.reactivex.*
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.rx2.rxSingle
+import kotlinx.coroutines.withContext
 import io.reactivex.disposables.Disposable as RxDisposable
 import java.lang.Exception
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 const val NO_ANIMATION_RES = 0
 
@@ -43,7 +48,7 @@ interface ActivityLifecycleOwner {
 
     companion object {
         fun defaultLifeSubject(): Subject<ActivityLifeEvent> =
-            PublishSubject.create<ActivityLifeEvent>().toSerialized()
+                BehaviorSubject.create<ActivityLifeEvent>().toSerialized()
     }
 }
 
@@ -58,61 +63,101 @@ interface FragmentLifecycleOwner {
 
     companion object {
         fun defaultLifeSubject(): Subject<FragmentLifeEvent> =
-            PublishSubject.create<FragmentLifeEvent>().toSerialized()
+                BehaviorSubject.create<FragmentLifeEvent>().toSerialized()
     }
 }
 
 //<editor-fold defaultstate="collapsed" desc="Activity Life">
-sealed class ActivityLifeEvent {
-    data class OnCreate(val activity: Activity, val savedInstanceState: Bundle?) : ActivityLifeEvent()
-    data class OnStart(val activity: Activity) : ActivityLifeEvent()
-    data class OnResume(val activity: Activity) : ActivityLifeEvent()
-    data class OnPause(val activity: Activity) : ActivityLifeEvent()
-    data class OnStop(val activity: Activity) : ActivityLifeEvent()
-    data class OnDestroy(val activity: Activity) : ActivityLifeEvent()
-    data class OnSaveInstanceState(val activity: Activity, val outState: Bundle) : ActivityLifeEvent()
+sealed class ActivityLifeEvent(val order: Int): Comparable<ActivityLifeEvent> {
+    override fun compareTo(other: ActivityLifeEvent): Int =
+            order.compareTo(other.order)
+
+    data class OnCreate(val activity: Activity, val savedInstanceState: Bundle?) : ActivityLifeEvent(OrderOnCreate)
+    data class OnStart(val activity: Activity) : ActivityLifeEvent(OrderOnStart)
+    data class OnResume(val activity: Activity) : ActivityLifeEvent(OrderOnResume)
+    data class OnPause(val activity: Activity) : ActivityLifeEvent(OrderOnPause)
+    data class OnStop(val activity: Activity) : ActivityLifeEvent(OrderOnStop)
+
+    data class OnSaveInstanceState(val activity: Activity, val outState: Bundle) : ActivityLifeEvent(OrderOnSaveInstanceState)
 
     // Global activity stream not have this events:
-    data class OnNewIntent(val activity: Activity, val intent: Intent?) : ActivityLifeEvent()
+    data class OnNewIntent(val activity: Activity, val intent: Intent?) : ActivityLifeEvent(OrderOnNewIntent)
 
-    data class OnConfigurationChanged(val activity: Activity, val newConfig: Configuration) : ActivityLifeEvent()
+    data class OnConfigurationChanged(val activity: Activity, val newConfig: Configuration) : ActivityLifeEvent(OrderOnConfigurationChanged)
     data class OnActivityResult(
         val activity: Activity, val requestCode: Int,
         val resultCode: Int, val data: Intent?
-    ) : ActivityLifeEvent()
+    ) : ActivityLifeEvent(OrderOnActivityResult)
+
+    data class OnDestroy(val activity: Activity) : ActivityLifeEvent(OrderOnDestroy)
+
+    companion object {
+        const val OrderOnCreate = 0
+        const val OrderOnStart = 1
+        const val OrderOnResume = 2
+        const val OrderOnPause = 3
+        const val OrderOnStop = 4
+        const val OrderOnSaveInstanceState = 5
+        const val OrderOnNewIntent = 6
+        const val OrderOnConfigurationChanged = 7
+        const val OrderOnActivityResult = 8
+        const val OrderOnDestroy = Int.MAX_VALUE
+    }
 }
 //</editor-fold>
 
 //<editor-fold defaultstate="collapsed" desc="Fragment Life">
-sealed class FragmentLifeEvent {
-    data class OnCreate(val fragment: Fragment, val savedInstanceState: Bundle?) : FragmentLifeEvent()
+sealed class FragmentLifeEvent(val order: Int): Comparable<FragmentLifeEvent> {
+    abstract val fragment: Fragment
+
+    override fun compareTo(other: FragmentLifeEvent): Int =
+            order.compareTo(other.order)
+
+    data class OnCreate(override val fragment: Fragment, val savedInstanceState: Bundle?) : FragmentLifeEvent(OrderOnCreate)
 
     data class OnCreateView(
-        val fragment: Fragment,
+        override val fragment: Fragment,
         val inflater: LayoutInflater,
         val container: ViewGroup?,
         val savedInstanceState: Bundle?
-    ) : FragmentLifeEvent()
+    ) : FragmentLifeEvent(OrderOnCreateView)
 
-    data class OnViewCreated(val fragment: Fragment, val view: View, val savedInstanceState: Bundle?) :
-        FragmentLifeEvent()
+    data class OnViewCreated(override val fragment: Fragment, val view: View, val savedInstanceState: Bundle?) :
+        FragmentLifeEvent(OrderOnViewCreated)
 
-    data class OnStart(val fragment: Fragment) : FragmentLifeEvent()
-    data class OnResume(val fragment: Fragment) : FragmentLifeEvent()
-    data class OnDestroy(val fragment: Fragment) : FragmentLifeEvent()
-    data class OnSaveInstanceState(val fragment: Fragment, val outState: Bundle) : FragmentLifeEvent()
-    data class OnLowMemory(val fragment: Fragment): FragmentLifeEvent()
+    data class OnStart(override val fragment: Fragment) : FragmentLifeEvent(OrderOnStart)
+    data class OnResume(override val fragment: Fragment) : FragmentLifeEvent(OrderOnResume)
 
-    // Just for StackFragment, see [StackFragment#onFragmentResult()]
-    data class OnFragmentResult(val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
-        : FragmentLifeEvent()
-    // Just for StackFragment, see [StackFragment#preSendFragmentResult()]
-    data class PreSendFragmentResult(val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
-        : FragmentLifeEvent()
     // Just for StackFragment, see [StackFragment#onShow()]
-    data class OnShow(val fragment: Fragment, val showMode: OnShowMode): FragmentLifeEvent()
+    data class OnShow(override val fragment: Fragment, val showMode: OnShowMode): FragmentLifeEvent(OrderOnShow)
     // Just for StackFragment, see [StackFragment#onHide()]
-    data class OnHide(val fragment: Fragment, val hideMode: OnHideMode): FragmentLifeEvent()
+    data class OnHide(override val fragment: Fragment, val hideMode: OnHideMode): FragmentLifeEvent(OrderOnHide)
+    // Just for StackFragment, see [StackFragment#onFragmentResult()]
+    data class OnFragmentResult(override val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
+        : FragmentLifeEvent(OrderOnFragmentResult)
+    // Just for StackFragment, see [StackFragment#preSendFragmentResult()]
+    data class PreSendFragmentResult(override val fragment: Fragment, val requestCode: Int, val resultCode: Int, val data: Bundle?)
+        : FragmentLifeEvent(OrderPreSendFragmentResult)
+
+    data class OnSaveInstanceState(override val fragment: Fragment, val outState: Bundle) : FragmentLifeEvent(OrderOnSaveInstanceState)
+    data class OnLowMemory(override val fragment: Fragment): FragmentLifeEvent(OrderOnLowMemory)
+
+    data class OnDestroy(override val fragment: Fragment) : FragmentLifeEvent(OrderOnDestroy)
+
+    companion object {
+        const val OrderOnCreate = 0
+        const val OrderOnCreateView = 1
+        const val OrderOnViewCreated = 2
+        const val OrderOnStart = 3
+        const val OrderOnResume = 4
+        const val OrderOnShow = 5
+        const val OrderOnHide = 6
+        const val OrderOnFragmentResult = 7
+        const val OrderPreSendFragmentResult = 8
+        const val OrderOnSaveInstanceState = 9
+        const val OrderOnLowMemory = 10
+        const val OrderOnDestroy = Int.MAX_VALUE
+    }
 }
 
 sealed class OnHideMode {
@@ -321,20 +366,24 @@ suspend fun FragmentManager.trans(f: FragmentTransaction.() -> Unit): Unit {
     ft.routeExecFT()
 }
 
-fun startAnim(@AnimRes animRes: Int, target: View?): Completable = if (target == null) Completable.complete() else Completable.create { emitter ->
-    if (target.background == null)
-        target.setBackgroundColor(Color.WHITE)
+suspend fun startAnim(@AnimRes animRes: Int, target: View?) = withContext(Dispatchers.Main) {
+    if (target == null) return@withContext
 
-    val animation = AnimationUtils.loadAnimation(target.context, animRes)
-    animation.setAnimationListener(object : Animation.AnimationListener {
-        override fun onAnimationRepeat(animation: Animation?) {}
+    suspendCoroutine<Unit> { emitter ->
+        if (target.background == null)
+            target.setBackgroundColor(Color.WHITE)
 
-        override fun onAnimationEnd(animation: Animation?) {
-            emitter.onComplete()
-        }
+        val animation = AnimationUtils.loadAnimation(target.context, animRes)
+        animation.setAnimationListener(object : Animation.AnimationListener {
+            override fun onAnimationRepeat(animation: Animation?) {}
 
-        override fun onAnimationStart(animation: Animation?) {}
+            override fun onAnimationEnd(animation: Animation?) {
+                emitter.resume(Unit)
+            }
 
-    })
-    target.startAnimation(animation)
+            override fun onAnimationStart(animation: Animation?) {}
+
+        })
+        target.startAnimation(animation)
+    }
 }
