@@ -68,7 +68,7 @@ fun <S> routeId(): YRoute<S, Unit> = routeF { s, c -> s toT Success(Unit) }
 
 fun <S> routeGetState(): YRoute<S, S> = routeF { s, _ -> s toT Success(s) }
 
-fun <S, R> routeFromState(f: (S) -> R): YRoute<S, R> = routeF { s, _ -> s toT Success(f(s)) }
+fun <S, R> routeFromState(f: suspend (S) -> R): YRoute<S, R> = routeF { s, _ -> s toT Success(f(s)) }
 
 fun <S, R> routeFail(msg: String): YRoute<S, R> = routeF { s, _ -> s toT Fail(msg) }
 

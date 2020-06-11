@@ -328,7 +328,7 @@ interface StackFragment : FragmentLifecycleOwner {
         controller.resultData = data
     }
 
-    fun onBackPressed(): Boolean = false
+    suspend fun onBackPressed(): Boolean = false
 }
 
 interface FragController {
