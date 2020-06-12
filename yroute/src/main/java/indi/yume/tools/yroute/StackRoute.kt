@@ -866,13 +866,15 @@ object StackRoute {
             add(fragmentId, targetF)
         }
 
-        val viewEvent = targetF.bindFragmentLife()
+        targetF.bindFragmentLife()
                 .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
-                .firstOrError().await()
-
-        backF.onHide(OnHideMode.OnStartNew)
-        targetF.onShow(OnShowMode.OnCreate)
-        startAnim(animData.enterAnim, viewEvent.fragment.view)
+                .firstOrError()
+                .flatMapCompletable { viewEvent ->
+                    backF.onHide(OnHideMode.OnStartNew)
+                    targetF.onShow(OnShowMode.OnCreate)
+                    startAnim(animData.enterAnim, viewEvent.fragment.view)
+                }
+                .await()
 
         trans { hide(backF) }
         backF.onHide(OnHideMode.OnStartNewAfterAnim)
@@ -1186,10 +1188,10 @@ object StackRoute {
             }
 
     suspend fun <F> FragmentManager.popFragWithAnim(animData: AnimData,
-                                                    backF: F, targetF: F) where F : Fragment, F : StackFragment  {
+                                                    backF: F, targetF: F) where F : Fragment, F : StackFragment {
         trans { show(backF) }
 
-        startAnim(animData.exitAnim, targetF.view)
+        startAnim(animData.exitAnim, targetF.view).await()
 
         trans { remove(targetF) }
         backF.onShow(OnShowMode.OnBack)

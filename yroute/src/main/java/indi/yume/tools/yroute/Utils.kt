@@ -366,24 +366,20 @@ suspend fun FragmentManager.trans(f: FragmentTransaction.() -> Unit): Unit {
     ft.routeExecFT()
 }
 
-suspend fun startAnim(@AnimRes animRes: Int, target: View?) = withContext(Dispatchers.Main) {
-    if (target == null) return@withContext
+fun startAnim(@AnimRes animRes: Int, target: View?): Completable = if (target == null) Completable.complete() else Completable.create { emitter ->
+    if (target.background == null)
+        target.setBackgroundColor(Color.WHITE)
 
-    suspendCoroutine<Unit> { emitter ->
-        if (target.background == null)
-            target.setBackgroundColor(Color.WHITE)
+    val animation = AnimationUtils.loadAnimation(target.context, animRes)
+    animation.setAnimationListener(object : Animation.AnimationListener {
+        override fun onAnimationRepeat(animation: Animation?) {}
 
-        val animation = AnimationUtils.loadAnimation(target.context, animRes)
-        animation.setAnimationListener(object : Animation.AnimationListener {
-            override fun onAnimationRepeat(animation: Animation?) {}
+        override fun onAnimationEnd(animation: Animation?) {
+            emitter.onComplete()
+        }
 
-            override fun onAnimationEnd(animation: Animation?) {
-                emitter.resume(Unit)
-            }
+        override fun onAnimationStart(animation: Animation?) {}
 
-            override fun onAnimationStart(animation: Animation?) {}
-
-        })
-        target.startAnimation(animation)
-    }
+    })
+    target.startAnimation(animation)
 }
