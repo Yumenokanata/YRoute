@@ -182,6 +182,23 @@ object ActivitiesRoute {
             )
         }
 
+
+    fun deleteTargetActivity(targetData: ActivityData, beforeAction: suspend (ActivityData) -> Unit): YRoute<ActivitiesState, Unit> =
+            routeF { vd, cxt ->
+                val targetItem = vd.list.firstOrNull { it.hashTag == targetData.hashTag }
+
+                if (targetItem != null) {
+                    beforeAction(targetItem)
+
+                    val newState = vd.copy(list = vd.list.filter { it.hashTag != targetData.hashTag })
+
+                    newState toT Success(Unit)
+                } else vd toT Fail(
+                        "finishTargetActivity | failed, target item not find: " +
+                                "target=$targetData but stack has ${vd.list.joinToString()}"
+                )
+            }
+
     fun findTargetActivityItem(activity: Activity): YRoute<ActivitiesState, ActivityData?> =
         routeF { vd, cxt ->
             val item = vd.list.firstOrNull { it.activity === activity }

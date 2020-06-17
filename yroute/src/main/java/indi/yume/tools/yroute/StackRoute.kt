@@ -28,11 +28,13 @@ import io.reactivex.subjects.Subject
 import java.lang.ClassCastException
 import kotlin.random.Random
 import androidx.annotation.AnimRes
+import androidx.annotation.MainThread
 import androidx.core.view.ViewCompat
 import arrow.mtl.ReaderT
 import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import io.reactivex.Completable
 import io.reactivex.Observable
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.rx2.await
 import kotlinx.coroutines.withContext
 
@@ -1431,21 +1433,39 @@ object StackRoute {
             where F : Fragment, T : StackType<F> =
             routeRunAtAct(host, this)
 
-    infix fun <F, A, T> YRoute<StackFragState<F, T>, Tuple2<F?, FinishResult>>.runAtADealFinish(act: A): YRoute<ActivitiesState, FinishResult>
+    fun <F, A, T> YRoute<StackFragState<F, T>, Tuple2<F?, FinishResult>>.runAtADealFinish(
+            act: A,
+            @MainThread finishAction: (FragmentActivity) -> Unit = { it.finish() }): YRoute<ActivitiesState, FinishResult>
             where F : Fragment, F : StackFragment, T : StackType<F>, A : FragmentActivity, A : StackHost<F, T> =
-            runAtADealFinish(act, act)
+            runAtADealFinish(act, act, finishAction)
 
     fun <F, T> YRoute<StackFragState<F, T>, Tuple2<F?, FinishResult>>.runAtADealFinish(
-            act: FragmentActivity, host: StackHost<F, T>): YRoute<ActivitiesState, FinishResult>
+            act: FragmentActivity, host: StackHost<F, T>,
+            @MainThread finishAction: (FragmentActivity) -> Unit = { it.finish() }): YRoute<ActivitiesState, FinishResult>
             where F : Fragment, F : StackFragment, T : StackType<F> =
             routeRunAtAct(host, this).flatMapR { (lastF, result) ->
+                fun finishParentAct() = ActivitiesRoute.findTargetActivityItem(act)
+                        .composeWith { state, cxt, item ->
+                            if (item == null) {
+                                finishAction(act)
+                                state toT Success(Unit)
+                            } else {
+                                ActivitiesRoute.deleteTargetActivity(item) { targetItem -> withContext(Dispatchers.Main) {
+                                    finishAction(act)
+                                    if (targetItem.animData != null)
+                                        targetItem.activity.overridePendingTransition(0, targetItem.animData.exitAnim)
+                                    else targetItem.activity.overridePendingTransition(0, 0)
+                                } }.runRoute(state, cxt)
+                            }
+                        }
+
                 when (result) {
                     FinishResult.FinishOver -> routeId<ActivitiesState>()
                     FinishResult.FinishParent -> {
                         (if (lastF != null && lastF.requestCode != -1) {
                             act.setResult(lastF.resultCode, lastF.resultData?.let { Intent().putExtras(it) })
                             routeFromSuspend<ActivitiesState, Unit> { dealFinishForResult(lastF, null) }
-                        } else routeId()).andThen(ActivitiesRoute.routeFinish(act))
+                        } else routeId()).andThen(finishParentAct())
                     }
                 }.mapResult { result }
             }
@@ -1467,13 +1487,19 @@ object StackRoute {
                     }
             ) runAtA host
 
+    fun <F, T> defaultOnBackPressedLogic(act: FragmentActivity, host: StackHost<F, T>): YRoute<ActivitiesState, FinishResult>
+            where F : Fragment, F : StackFragment, T : StackType<F> =
+            routeFinishFragment<F>(null).mapFinishResult().runAtADealFinish(act, host) {
+                it.onBackPressedDispatcher.onBackPressed()
+            }
+
     fun <F, T> routeOnBackPressed(
             act: FragmentActivity, host: StackHost<F, T>): YRoute<ActivitiesState, Boolean>
             where F : Fragment, F : StackFragment, T : StackType<F> =
             checkOnBackPressed(host).flatMapR { isNotExecDefault ->
                 (if (isNotExecDefault) routeId<ActivitiesState>()
-                else routeFinishFragment<F>(null).mapFinishResult().runAtADealFinish(act, host))
-                        .mapResult { isNotExecDefault }
+                else defaultOnBackPressedLogic(act, host))
+                        .mapResult { !isNotExecDefault && it == FinishResult.FinishParent }
             }
 
     fun <F, T, A> routeOnBackPress(activity: A): YRoute<ActivitiesState, Boolean>
