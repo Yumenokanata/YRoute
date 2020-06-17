@@ -173,6 +173,11 @@ object ActivitiesRoute {
                     targetItem.activity.overridePendingTransition(0, targetItem.animData.exitAnim)
                 else targetItem.activity.overridePendingTransition(0, 0)
 
+                val act = targetItem.activity
+                if (act is ActivityLifecycleOwner)
+                    act.bindActivityLife().filter { it.order >= ActivityLifeEvent.OrderOnDestroy }
+                            .firstElement().await()
+
                 val newState = vd.copy(list = vd.list.filter { it.hashTag != targetData.hashTag })
 
                 newState toT Success(Unit)
@@ -189,6 +194,11 @@ object ActivitiesRoute {
 
                 if (targetItem != null) {
                     beforeAction(targetItem)
+
+                    val act = targetItem.activity
+                    if (act is ActivityLifecycleOwner)
+                        act.bindActivityLife().filter { it.order >= ActivityLifeEvent.OrderOnDestroy }
+                                .firstElement().await()
 
                     val newState = vd.copy(list = vd.list.filter { it.hashTag != targetData.hashTag })
 
