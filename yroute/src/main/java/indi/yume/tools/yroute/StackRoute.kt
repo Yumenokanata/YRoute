@@ -10,33 +10,32 @@ import android.transition.ChangeBounds
 import android.transition.ChangeTransform
 import android.transition.TransitionSet
 import android.view.View
+import androidx.annotation.AnimRes
 import androidx.annotation.IdRes
+import androidx.annotation.MainThread
+import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentTransaction
 import arrow.core.*
 import arrow.core.extensions.either.monad.flatMap
+import arrow.mtl.ReaderT
 import arrow.optics.Lens
 import arrow.optics.PLens
 import arrow.optics.PSetter
+import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.datatype.Success
+import io.reactivex.Completable
+import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
-import java.lang.ClassCastException
-import kotlin.random.Random
-import androidx.annotation.AnimRes
-import androidx.annotation.MainThread
-import androidx.core.view.ViewCompat
-import arrow.mtl.ReaderT
-import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
-import io.reactivex.Completable
-import io.reactivex.Observable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.rx2.await
 import kotlinx.coroutines.withContext
+import kotlin.random.Random
 
 
 //data class FragActivityData<out VD>(override val activity: FragmentActivity,
@@ -110,6 +109,11 @@ data class StackFragState<F, out Type : StackType<F>>(
     val host: StackHost<F, Type>,
     val stack: Type,
     val fm: FragmentManager) {
+
+    override fun toString(): String {
+        return "StackFragState(host=$host, stack=$stack, " +
+                "fm=${kotlin.runCatching { fm.toString() }.getOrNull() ?: "${fm.javaClass.name}@${Integer.toHexString(System.identityHashCode(fm))}(default toString has error.)"})"
+    }
 
     fun restore(fragment: Fragment, hashTag: Long? = null): StackFragState<F, Type> {
         return copy(stack = stack.restore(fragment) {
