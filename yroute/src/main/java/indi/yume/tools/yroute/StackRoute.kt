@@ -1450,12 +1450,18 @@ object StackRoute {
                                 finishAction(act)
                                 state toT Success(Unit)
                             } else {
-                                ActivitiesRoute.deleteTargetActivity(item) { targetItem -> withContext(Dispatchers.Main) {
+                                val deleteResult = ActivitiesRoute.deleteTargetActivity(item) { targetItem -> withContext(Dispatchers.Main) {
                                     finishAction(act)
                                     if (targetItem.animData != null)
                                         targetItem.activity.overridePendingTransition(0, targetItem.animData.exitAnim)
                                     else targetItem.activity.overridePendingTransition(0, 0)
                                 } }.runRoute(state, cxt)
+
+                                if (act is ActivityLifecycleOwner)
+                                    act.bindActivityLife().filter { it.order >= ActivityLifeEvent.OrderOnDestroy }
+                                            .firstElement().await()
+
+                                deleteResult
                             }
                         }
 
