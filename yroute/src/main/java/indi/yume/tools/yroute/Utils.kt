@@ -176,7 +176,7 @@ sealed class OnShowMode {
 }
 //</editor-fold>
 
-fun isMainThread(): Boolean = Looper.myLooper() == Looper.getMainLooper()
+internal fun isMainThread(): Boolean = Looper.myLooper() == Looper.getMainLooper()
 
 class YRouteException(val fail: Fail) : Exception(fail.message, fail.error ?: Throwable("YRoute inner error."))
 
