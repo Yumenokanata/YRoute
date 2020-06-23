@@ -80,8 +80,7 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
 
     override fun onBackPressed() {
         GlobalScope.launch {
-            StackRoute.routeOnBackPress(this@BaseFragmentManagerActivity).start(core)
-        }.invokeOnCompletion { result ->
+            val result = StackRoute.routeOnBackPress(this@BaseFragmentManagerActivity).start(core)
             Logger.d("onBackPressed", "result=$result")
         }
     }

@@ -30,6 +30,7 @@ import indi.yume.tools.yroute.datatype.Success
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.Dispatchers
@@ -878,7 +879,10 @@ object StackRoute {
                 .flatMapCompletable { viewEvent ->
                     backF.onHide(OnHideMode.OnStartNew)
                     targetF.onShow(OnShowMode.OnCreate)
-                    startAnim(animData.enterAnim, viewEvent.fragment.view)
+                    startAnim(animData.enterAnim, viewEvent.fragment.view).let {
+                        if (isMainThread()) it
+                        else it.subscribeOn(AndroidSchedulers.mainThread())
+                    }
                 }
                 .await()
 
@@ -1197,7 +1201,9 @@ object StackRoute {
                                                     backF: F, targetF: F) where F : Fragment, F : StackFragment {
         trans { show(backF) }
 
-        startAnim(animData.exitAnim, targetF.view).await()
+        withContext(Dispatchers.Main) {
+            startAnim(animData.exitAnim, targetF.view).await()
+        }
 
         trans { remove(targetF) }
         backF.onShow(OnShowMode.OnBack)

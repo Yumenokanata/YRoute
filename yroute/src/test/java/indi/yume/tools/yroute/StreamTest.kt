@@ -3,16 +3,14 @@ package indi.yume.tools.yroute
 import arrow.core.Either
 import arrow.core.None
 import arrow.core.Some
-import arrow.core.extensions.either.foldable.size
-import arrow.effects.ForIO
+import arrow.fx.ForIO
 import arrow.fx.IO
-import arrow.effects.extensions.io.async.async
-import arrow.effects.extensions.io.fx.fx
+import arrow.fx.extensions.fx
+import arrow.fx.extensions.io.async.async
 import org.junit.Test
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
-import arrow.effects.extensions.io.monad.monad
 import indi.yume.tools.yroute.datatype.*
 import kotlinx.coroutines.Dispatchers
 import java.io.BufferedReader
@@ -191,7 +189,7 @@ class StreamTest {
                 emitter(EventType.OnNext(999))
             }.start()
         }.flatMap {
-            await(IO.fx().fx {
+            await(IO.fx {
                 continueOn(Dispatchers.IO)
                 Thread.sleep(1L * it / 10)
                 "$it"

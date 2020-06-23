@@ -26,6 +26,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.1.0'
 
     implementation "io.reactivex.rxjava2:rxjava:2.2.13"
+    implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
     api "io.arrow-kt:arrow-core:$arrow_version"
     api "io.arrow-kt:arrow-mtl:$arrow_version"
     api "io.arrow-kt:arrow-optics:$arrow_version"

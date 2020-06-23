@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -174,6 +175,8 @@ sealed class OnShowMode {
     data class OnRestore(val savedInstanceState: Bundle) : OnShowMode()
 }
 //</editor-fold>
+
+fun isMainThread(): Boolean = Looper.myLooper() == Looper.getMainLooper()
 
 class YRouteException(val fail: Fail) : Exception(fail.message, fail.error ?: Throwable("YRoute inner error."))
 
