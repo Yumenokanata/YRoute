@@ -10,7 +10,7 @@ import arrow.core.toT
 import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
 import io.reactivex.Completable
-import io.reactivex.Single
+import io.reactivex.Maybe
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.rx2.await
@@ -83,8 +83,15 @@ object ActivitiesRoute {
 
             Logger.d("startActivity", "wait activity.")
             val act = cxt.bindNextActivity(intent)
-                .firstOrError().await()
+                .firstElement().await()
             Logger.d("startActivity", "get activity: $act")
+
+            if (act == null) {
+                return@routeF vd toT Fail(
+                        "startActivity | start activity is Success, App life is over but can not get target activity " +
+                                "target is ${intent.component?.className}", null
+                )
+            }
 
             vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = animData)) toT
                     (if (cxt.checkComponentClass(intent, act)) YResult.success(act)
@@ -105,7 +112,14 @@ object ActivitiesRoute {
                 else top.overridePendingTransition(0, 0)
 
                 val act = cxt.bindNextActivity(intent)
-                    .firstOrError().await()
+                    .firstElement().await()
+
+                if (act == null) {
+                    return@routeF vd toT Fail(
+                            "startActivityForResult | start activity is Success, App life is over but can not get target activity " +
+                                    "target is ${intent.component?.className}", null
+                    )
+                }
 
                 vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = animData)) toT
                         (if (cxt.checkComponentClass(intent, act)) YResult.success(act)
@@ -116,7 +130,7 @@ object ActivitiesRoute {
             } else vd toT Fail("startActivityForRx has failed: have no top activity.", null)
         }
 
-    fun <A> startActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Tuple2<A, Single<Tuple2<Int, Bundle?>>>> =
+    fun <A> startActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Tuple2<A, Maybe<Tuple2<Int, Bundle?>>>> =
         routeF { vd, cxt ->
             val intent = builder.createIntent(cxt)
             val top = vd.list.lastOrNull()?.activity
@@ -131,15 +145,22 @@ object ActivitiesRoute {
                 else top.overridePendingTransition(0, 0)
 
                 val activity = cxt.bindNextActivity(intent)
-                    .firstOrError().await()
+                    .firstElement().await()
+
+                if (activity == null) {
+                    return@routeF vd toT Fail(
+                            "startActivityForRx | start activity is Success, App life is over but can not get target activity " +
+                                    "target is ${intent.component?.className}", null
+                    )
+                }
 
                 val newState = vd.copy(list = vd.list + ActivityData(activity, CoreID.get(), animData = animData))
 
                 newState toT if (activity is ActivityLifecycleOwner && builder.clazz.isInstance(activity)) {
                     Success((activity as A) toT activity.bindActivityLife().ofType(ActivityLifeEvent.OnActivityResult::class.java)
-                        .filter { it.requestCode == requestCode }
-                        .firstOrError()
-                        .map { it.resultCode toT it.data?.extras })
+                            .filter { it.requestCode == requestCode }
+                            .firstElement()
+                            .map { it.resultCode toT it.data?.extras })
                 } else Fail(
                     "startActivityForRx | start activity is Success, but can not get target activity: " +
                             "target is ${builder.clazz.simpleName} but get is $activity", null
@@ -231,7 +252,7 @@ object ActivitiesRoute {
                     it as A
                 }
 
-    fun <A> routeStartActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Tuple2<A, Single<Tuple2<Int, Bundle?>>>> =
+    fun <A> routeStartActivityForRx(builder: ActivityBuilder<A>): YRoute<ActivitiesState, Tuple2<A, Maybe<Tuple2<Int, Bundle?>>>> =
             startActivityForRx(builder)
 
     val routeFinishTop: YRoute<ActivitiesState, Unit> = backActivity

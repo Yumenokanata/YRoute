@@ -88,7 +88,7 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
     suspend fun <A : Activity> start(builder: ActivityBuilder<A>): A =
             ActivitiesRoute.routeStartActivity(builder).startLazy(core).flattenForYRoute()
 
-    suspend fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): Tuple2<Int, Bundle?> =
+    suspend fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): Tuple2<Int, Bundle?>? =
             ActivitiesRoute.routeStartActivityForRx(builder).startLazy(core).flattenForYRoute()
                     .b.await()
 

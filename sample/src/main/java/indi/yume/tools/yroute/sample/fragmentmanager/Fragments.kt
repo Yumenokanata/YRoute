@@ -48,7 +48,7 @@ class FragmentPage1 : BaseFragment() {
                     .withParam(OtherParam("This is param from FragmentPage1.")))
 
             Toast.makeText(activity,
-                    "YResult from Other fragment: \nresultCode=${result.a}, data=${result.b?.getString("msg")}",
+                    "YResult from Other fragment: \nresultCode=${result?.a}, data=${result?.b?.getString("msg")}",
                     Toast.LENGTH_SHORT).show()
         } }
 

@@ -154,7 +154,7 @@ object ActivitiesRoute {
 
     fun routeStartActivityForResult(builder: ActivityBuilder<Activity>, requestCode: Int): YRoute<ActivitiesState, Activity>
 
-    fun routeStartActivityForRx(builder: ActivityBuilder): YRoute<ActivitiesState, Single<Tuple2<Int, Bundle?>>>
+    fun routeStartActivityForRx(builder: ActivityBuilder): YRoute<ActivitiesState, Maybe<Tuple2<Int, Bundle?>>>
 
     val routeFinishTop: YRoute<ActivitiesState, Unit>
 
@@ -269,13 +269,13 @@ object StackRoute {
     fun <F> routeStartFragmentForResult(builder: FragmentBuilder<F>, requestCode: Int): YRoute<StackFragState<F, StackType<F>>, F>
             where F : Fragment, F : StackFragment
 
-    fun <F> routeStartFragmentForRxAtSingle(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Single<F>>, Single<Tuple2<Int, Bundle?>>>
+    fun <F> routeStartFragmentForRxAtSingle(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Single<F>>, Maybe<Tuple2<Int, Bundle?>>>
             where F : Fragment, F : StackFragment, F : FragmentLifecycleOwner
 
-    fun <F> routeStartFragmentForRxAtTable(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Table<F>>, Single<Tuple2<Int, Bundle?>>>
+    fun <F> routeStartFragmentForRxAtTable(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Table<F>>, Maybe<Tuple2<Int, Bundle?>>>
             where F : Fragment, F : StackFragment, F : FragmentLifecycleOwner
 
-    fun <F> routeStartFragmentForRx(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType<F>>, Single<Tuple2<Int, Bundle?>>>
+    fun <F> routeStartFragmentForRx(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType<F>>, Maybe<Tuple2<Int, Bundle?>>>
             where F : Fragment, F : StackFragment, F : FragmentLifecycleOwner
 
     fun <F> routeSwitchTag(tag: TableTag): YRoute<StackFragState<F, StackType.Table<F>>, F?> where F : Fragment

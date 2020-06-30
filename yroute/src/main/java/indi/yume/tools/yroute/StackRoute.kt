@@ -28,6 +28,7 @@ import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.datatype.Success
 import io.reactivex.Completable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -549,7 +550,14 @@ object StackRoute {
                 else (top as? Activity)?.overridePendingTransition(0, 0)
 
                 val act = cxt.bindNextActivity(intent)
-                        .firstOrError().await()
+                        .firstElement().await()
+
+                if (act == null) {
+                    return@transform vd toT Fail(
+                            "startStackFragActivity | start activity is Success, App life is over but can not get target activity " +
+                                    "target is ${intent.component?.className}", null
+                    )
+                }
 
                 if (act !is StackHost<*, *> || act !is ActivityLifecycleOwner) {
                     vd.copy(list = vd.list + ActivityData(act, CoreID.get(), animData = anim)) toT
@@ -605,14 +613,14 @@ object StackRoute {
                 it
             }
 
-    fun <S, F> YRoute<S, F>.mapToRx(): YRoute<S, Single<Tuple2<Int, Bundle?>>>
+    fun <S, F> YRoute<S, F>.mapToRx(): YRoute<S, Maybe<Tuple2<Int, Bundle?>>>
             where F : StackFragment, F : FragmentLifecycleOwner {
         val requestCode: Int = Random.nextInt()
 
         return dealFragForResult(requestCode).mapResult { f ->
             f.bindFragmentLife().ofType(FragmentLifeEvent.PreSendFragmentResult::class.java)
                 .filter { it.requestCode == requestCode }
-                .firstOrError()
+                .firstElement()
                 .map { it.resultCode toT it.data }
         }
     }
@@ -875,7 +883,7 @@ object StackRoute {
 
         targetF.bindFragmentLife()
                 .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
-                .firstOrError()
+                .firstElement()
                 .flatMapCompletable { viewEvent ->
                     backF.onHide(OnHideMode.OnStartNew)
                     targetF.onShow(OnShowMode.OnCreate)
@@ -1542,15 +1550,15 @@ object StackRoute {
                     routeStartFragmentForResultAtSingle(builder, requestCode),
                     routeStartFragmentForResultAtTable(builder, requestCode))
 
-    fun <F> routeStartFragmentForRxAtSingle(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Single<F>>, Single<Tuple2<Int, Bundle?>>>
+    fun <F> routeStartFragmentForRxAtSingle(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Single<F>>, Maybe<Tuple2<Int, Bundle?>>>
             where F : Fragment, F : StackFragment, F : FragmentLifecycleOwner =
             startFragmentForSingle(builder).mapToRx()
 
-    fun <F> routeStartFragmentForRxAtTable(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Table<F>>, Single<Tuple2<Int, Bundle?>>>
+    fun <F> routeStartFragmentForRxAtTable(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType.Table<F>>, Maybe<Tuple2<Int, Bundle?>>>
             where F : Fragment, F : StackFragment, F : FragmentLifecycleOwner =
             startFragmentForTable(builder).mapToRx()
 
-    fun <F> routeStartFragmentForRx(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType<F>>, Single<Tuple2<Int, Bundle?>>>
+    fun <F> routeStartFragmentForRx(builder: FragmentBuilder<F>): YRoute<StackFragState<F, StackType<F>>, Maybe<Tuple2<Int, Bundle?>>>
             where F : Fragment, F : StackFragment, F : FragmentLifecycleOwner =
             foldForFragState(
                     routeStartFragmentForRxAtSingle(builder),

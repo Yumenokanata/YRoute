@@ -1,10 +1,12 @@
 package indi.yume.tools.yroute
 
+import indi.yume.tools.yroute.datatype.Fail
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import org.junit.Test
+import java.lang.RuntimeException
 import java.net.URI
 import java.util.concurrent.TimeUnit
 
@@ -47,5 +49,16 @@ class StringRouteTest {
 
 
         Thread.sleep(3000)
+    }
+
+    @Test
+    fun testExp() {
+        try {
+            val exp = RuntimeException("run time exp.")
+            val fail = Fail("fail model.", exp)
+            throw YRouteException(fail)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
     }
 }
