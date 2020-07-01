@@ -13,9 +13,11 @@ import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.rx2.rxCompletable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.random.Random
 
@@ -323,12 +325,12 @@ class MainCoreEngine<S>(val state: MVarSuspend<S>,
     override suspend fun <R> run(route: YRoute<S, R>): YResult<R> =
             runActual(route)
 
-    private suspend fun <R> runActual(route: YRoute<S, R>): YResult<R> = mutex.withLock {
+    private suspend fun <R> runActual(route: YRoute<S, R>): YResult<R> = withContext(NonCancellable) { mutex.withLock {
         val code = Random.nextInt()
         Logger.d("CoreEngine", "================>>>>>>>>>>>> $code")
-        Logger.d("CoreEngine", "start run: route=$route")
+        Logger.d("CoreEngine") { "start run: route=$route" }
         val oldState = state.take()
-        Logger.d("CoreEngine", "get oldState: $oldState")
+        Logger.d("CoreEngine") { "get oldState: $oldState" }
 
         val timeout = YRouteConfig.taskRunnerTimeout
 
@@ -342,18 +344,18 @@ class MainCoreEngine<S>(val state: MVarSuspend<S>,
             }
         } catch (e: Throwable) {
             // TODO force restore all state.
-            oldState toT Fail("A very serious exception has occurred when run route, Status may become out of sync.", e)
+            oldState toT Fail("A very serious exception has occurred when run route, Status may become out of sync, taskCode=$code.", e)
         }
 
-        Logger.d("CoreEngine", "return result: result=$result, newState=$newState")
+        Logger.d("CoreEngine") { "return result: result=$result, newState=$newState" }
         state.put(newState)
         if (newState == oldState)
             Logger.d("CoreEngine", "put newState: state not changed")
         else
-            Logger.d("CoreEngine", "put newState: newState=$newState")
+            Logger.d("CoreEngine") { "put newState: newState=$newState" }
         Logger.d("CoreEngine", "================<<<<<<<<<<<< $code")
-        return result
-    }
+        result
+    } }
 
     fun <S2> subCore(lens: Lens<S, S2>): SubCoreEngine<S2> {
         val subDelegate = object : CoreEngine<S2> {
