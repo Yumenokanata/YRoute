@@ -325,8 +325,8 @@ class MainCoreEngine<S>(val state: MVarSuspend<S>,
     override suspend fun <R> run(route: YRoute<S, R>): YResult<R> =
             runActual(route)
 
-    private suspend fun <R> runActual(route: YRoute<S, R>): YResult<R> = withContext(NonCancellable) { mutex.withLock {
-        val code = Random.nextInt()
+    private suspend fun <R> runActual(route: YRoute<S, R>): YResult<R> = mutex.withLock { withContext(NonCancellable) {
+    val code = Random.nextInt()
         Logger.d("CoreEngine", "================>>>>>>>>>>>> $code")
         Logger.d("CoreEngine") { "start run: route=$route" }
         val oldState = state.take()
