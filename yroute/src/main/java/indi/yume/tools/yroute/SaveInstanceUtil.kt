@@ -7,6 +7,8 @@ import arrow.core.toT
 import indi.yume.tools.yroute.datatype.Success
 import indi.yume.tools.yroute.datatype.YRoute
 import indi.yume.tools.yroute.datatype.routeF
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 typealias SaveKey = String
@@ -56,13 +58,15 @@ object SaveInstanceActivityUtil {
     val lock = this
     private var savedMap: Map<Long, ActivityData> = emptyMap()
 
-    fun save(bundle: Bundle, state: ActivitiesState, activity: Activity) {
+    suspend fun save(bundle: Bundle, state: ActivitiesState, activity: Activity) {
         val target = state.list.find { it.activity == activity }
         if (target != null) {
             synchronized(lock) {
                 savedMap = savedMap + (target.hashTag to target)
             }
-            bundle.putLong(INTENT_KEY__ACTIVITY_TAG, target.hashTag)
+            withContext(Dispatchers.Main) {
+                bundle.putLong(INTENT_KEY__ACTIVITY_TAG, target.hashTag)
+            }
 
         }
     }
@@ -116,7 +120,7 @@ object SaveInstanceFragmentUtil {
     val lock = this
     private var savedMap: Map<Long, FragSaveData> = emptyMap()
 
-    fun save(bundle: Bundle, state: StackFragState<*, *>, fragment: Fragment) {
+    suspend fun save(bundle: Bundle, state: StackFragState<*, *>, fragment: Fragment) {
         val stack = state.stack
 
         val target = when (stack) {
@@ -135,7 +139,9 @@ object SaveInstanceFragmentUtil {
                 else null
                 savedMap = savedMap + (target.hashTag to FragSaveData(fragment.controller, param))
             }
-            bundle.putLong(INTENT_KEY__FRAGMENT_TAG, target.hashTag)
+            withContext(Dispatchers.Main) {
+                bundle.putLong(INTENT_KEY__FRAGMENT_TAG, target.hashTag)
+            }
         }
     }
 
