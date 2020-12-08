@@ -13,12 +13,10 @@ import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
-import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.*
 import kotlinx.coroutines.rx2.rxCompletable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlin.random.Random
 
 
@@ -264,6 +262,8 @@ fun <S, SS, R> YRoute<S, YRoute<SS, R>>.flatten(lens: Lens<S, SS>): YRoute<S, R>
 interface CoreEngine<S> {
     val routeCxt: RouteCxt
 
+    suspend fun getCurrentState(): S
+
     suspend fun runSuspend(io: suspend () -> Unit): Unit
 
     @CheckResult
@@ -306,6 +306,8 @@ class MainCoreEngine<S>(val state: MVarSuspend<S>,
 ): CoreEngine<S> {
     val mutex = Mutex()
     val streamSubject: Subject<Completable> = PublishSubject.create()
+
+    override suspend fun getCurrentState(): S = state.take()
 
     override suspend fun runSuspend(io: suspend () -> Unit): Unit {
         streamSubject.onNext(rxCompletable { io() })
@@ -361,6 +363,8 @@ class MainCoreEngine<S>(val state: MVarSuspend<S>,
         val subDelegate = object : CoreEngine<S2> {
             override val routeCxt: RouteCxt = this@MainCoreEngine.routeCxt
 
+            override suspend fun getCurrentState(): S2 = lens.get(this@MainCoreEngine.getCurrentState())
+
             override suspend fun runSuspend(io: suspend () -> Unit) {
                 this@MainCoreEngine.runSuspend(io)
             }
@@ -402,6 +406,8 @@ class SubCoreEngine<S>(delegate: CoreEngine<S>): CoreEngine<S> by delegate {
     fun <S2> subCore(lens: Lens<S, S2>): SubCoreEngine<S2> {
         val subDelegate = object : CoreEngine<S2> {
             override val routeCxt: RouteCxt = this@SubCoreEngine.routeCxt
+
+            override suspend fun getCurrentState(): S2 = lens.get(this@SubCoreEngine.getCurrentState())
 
             override suspend fun runSuspend(io: suspend () -> Unit) {
                 this@SubCoreEngine.runSuspend(io)

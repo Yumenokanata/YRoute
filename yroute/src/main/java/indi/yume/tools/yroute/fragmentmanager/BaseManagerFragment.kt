@@ -73,6 +73,7 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        SaveInstanceFragmentUtil.save(this, outState)
         makeState(FragmentLifeEvent.OnSaveInstanceState(this, outState))
     }
 

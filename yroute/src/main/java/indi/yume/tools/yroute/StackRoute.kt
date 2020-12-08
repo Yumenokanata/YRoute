@@ -122,7 +122,8 @@ data class StackFragState<F, out Type : StackType<F>>(
             it.t == fragment
                     || hashTag == it.hashTag
                     || (fragment is StackFragment && fragment.controller.hashTag == it.hashTag)
-        } as Type)
+        } as Type,
+        fm = fragment.activity?.supportFragmentManager ?: fm)
     }
 }
 
@@ -1712,22 +1713,20 @@ fun <F> FragmentLifecycleOwner.commonFragmentLifeLogic()
 
 fun <F> F.commonFragmentLifeLogicDefault(coreEval: () -> CoreEngine<ActivitiesState>)
         : Completable
-        where F : Fragment, F : FragmentLifecycleOwner =
-        commonFragmentLifeLogic<F>()
-                .flatMapSingle { eventYR -> StackRoute.run {
-                    eventYR runAtF this@commonFragmentLifeLogicDefault
-                }.startLazy(coreEval()).flattenForYRouteLazy().asSingle() }
-                .ignoreElements()
+        where F : Fragment, F : FragmentLifecycleOwner {
+    val act by lazy { this@commonFragmentLifeLogicDefault.activity as? StackHost<F, StackType<F>> }
+    return commonFragmentLifeLogic<F>()
+            .flatMapSingle { eventYR -> StackRoute.run {
+                eventYR runAtA act!!
+            }.startLazy(coreEval()).flattenForYRouteLazy().asSingle() }
+            .ignoreElements()
+}
 
 fun <F> saveAndRestoreLogic(event: FragmentLifeEvent): YRoute<StackFragState<F, StackType<F>>, Unit>
         where F : Fragment =
         routeF { state, cxt ->
             val defaultResult = state toT Success(Unit)
             when (event) {
-                is FragmentLifeEvent.OnSaveInstanceState -> {
-                    SaveInstanceFragmentUtil.routeSave<F>(event.fragment, event.outState)
-                            .runRoute(state, cxt)
-                }
                 is FragmentLifeEvent.OnCreate -> {
                     val bundle = event.savedInstanceState
                     if (bundle != null)

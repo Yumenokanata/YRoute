@@ -15,10 +15,8 @@ import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
 import io.reactivex.subjects.Subject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import io.reactivex.android.schedulers.AndroidSchedulers
+import kotlinx.coroutines.*
 
 abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner, CoroutineScope by MainScope() {
     override val lifeSubject: Subject<FragmentLifeEvent> = FragmentLifecycleOwner.defaultLifeSubject()
@@ -72,6 +70,7 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner,
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        SaveInstanceFragmentUtil.save(this@BaseFragment, outState)
         makeState(FragmentLifeEvent.OnSaveInstanceState(this, outState))
     }
 
@@ -178,7 +177,7 @@ class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val s = injector.subscribe {
+        val s = injector.observeOn(AndroidSchedulers.mainThread()).subscribe {
             Toast.makeText(activity, it.toString(), Toast.LENGTH_SHORT).show()
         }
 

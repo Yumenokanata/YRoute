@@ -120,28 +120,16 @@ object SaveInstanceFragmentUtil {
     val lock = this
     private var savedMap: Map<Long, FragSaveData> = emptyMap()
 
-    suspend fun save(bundle: Bundle, state: StackFragState<*, *>, fragment: Fragment) {
-        val stack = state.stack
+    fun <F> save(fragment: F, bundle: Bundle) where F : Fragment, F : StackFragment {
+        val hashTag = fragment.controller.hashTag
+        if (hashTag != null) synchronized(lock) {
+            val param = if (fragment is FragmentParam<*>)
+                fragment.injector.firstElement().timeout(100, TimeUnit.MILLISECONDS)
+                        .blockingGet()
+            else null
+            savedMap = savedMap + (hashTag to FragSaveData(fragment.controller, param))
 
-        val target = when (stack) {
-            is StackType.Single<*> -> stack.list.find {
-                    it.t == fragment || (fragment is StackFragment && fragment.controller.hashTag == it.hashTag)
-                }
-            is StackType.Table<*> -> stack.table.values.flatMap { it }.find {
-                it.t == fragment || (fragment is StackFragment && fragment.controller.hashTag == it.hashTag)
-            }
-        }
-        if (target != null) {
-            if (fragment is StackFragment) synchronized(lock) {
-                val param = if (fragment is FragmentParam<*>)
-                    fragment.injector.firstElement().timeout(100, TimeUnit.MILLISECONDS)
-                            .blockingGet()
-                else null
-                savedMap = savedMap + (target.hashTag to FragSaveData(fragment.controller, param))
-            }
-            withContext(Dispatchers.Main) {
-                bundle.putLong(INTENT_KEY__FRAGMENT_TAG, target.hashTag)
-            }
+            bundle.putLong(INTENT_KEY__FRAGMENT_TAG, hashTag)
         }
     }
 
@@ -156,19 +144,17 @@ object SaveInstanceFragmentUtil {
                 if (savedData != null) {
                     fragment.controller = savedData.controller
                     if (fragment is FragmentParam<*> && savedData.param != null)
-                        fragment.unsafePutParam(savedData.param)
+                        try {
+                            fragment.unsafePutParam(savedData.param)
+                        } catch (e: Throwable) {
+                            Logger.d("restore", e.message ?: "unsafePutParam has error.")
+                        }
                 }
                 savedMap = savedMap - tag
             }
             oldState.restore(fragment, tag)
         } else oldState
     }
-
-    fun <F> routeSave(fragment: Fragment, bundle: Bundle): YRoute<StackFragState<F, StackType<F>>, Unit> =
-            routeF { state, cxt ->
-                save(bundle, state, fragment)
-                state toT Success(Unit)
-            }
 
     fun <F> routeRestore(fragment: Fragment, bundle: Bundle): YRoute<StackFragState<F, StackType<F>>, Unit> =
             routeF { state, cxt ->
