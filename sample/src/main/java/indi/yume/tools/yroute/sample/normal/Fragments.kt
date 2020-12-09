@@ -70,7 +70,6 @@ abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner,
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        SaveInstanceFragmentUtil.save(this@BaseFragment, outState)
         makeState(FragmentLifeEvent.OnSaveInstanceState(this, outState))
     }
 
@@ -171,6 +170,10 @@ class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
                         Toast.LENGTH_SHORT).show()
             }.catchSubscribe()
         } }
+        injector.doOnNext {
+            println("==========> Other inject: ${Thread.currentThread().name}")
+        }.subscribe()
+        injector.blockingFirst()
         return view
     }
 

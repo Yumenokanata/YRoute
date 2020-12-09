@@ -50,7 +50,10 @@ typealias SuspendP<R> = suspend () -> R
 
 //<editor-fold desc="YRoute">
 @higherkind
-data class YRoute<S, R>(val run: (S) -> (suspend (RouteCxt) -> Tuple2<S, YResult<R>>)) : YRouteOf<S, R> {
+data class YRoute<S, R>(val run: (S) -> (suspend (RouteCxt) -> Tuple2<S, YResult<R>>),
+                        val tag: String = "YRoute") : YRouteOf<S, R> {
+    constructor(run: (S) -> (suspend (RouteCxt) -> Tuple2<S, YResult<R>>)): this(run, "YRoute")
+
     companion object
 }
 
@@ -328,7 +331,7 @@ class MainCoreEngine<S>(val state: MVarSuspend<S>,
             runActual(route)
 
     private suspend fun <R> runActual(route: YRoute<S, R>): YResult<R> = mutex.withLock { withContext(NonCancellable) {
-    val code = Random.nextInt()
+        val code = Random.nextInt()
         Logger.d("CoreEngine", "================>>>>>>>>>>>> $code")
         Logger.d("CoreEngine") { "start run: route=$route" }
         val oldState = state.take()

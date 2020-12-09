@@ -13,6 +13,7 @@ import io.reactivex.Completable
 import io.reactivex.Maybe
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.rx2.await
 import kotlin.random.Random
 
@@ -274,7 +275,8 @@ fun CoreEngine<ActivitiesState>.bindApp(): Completable =
     routeCxt.globalActivityLife.bindActivityLife()
         .map { event ->
             GlobalScope.launch {
-                run(saveActivitiesInstanceState(event))
+                run(saveActivitiesInstanceState(event) { runBlocking { getCurrentState() } }
+                        .copy(tag = "saveActivitiesInstanceState -> ${event.javaClass.simpleName}"))
             }.invokeOnCompletion {
                 it?.printStackTrace()
             }
@@ -282,7 +284,7 @@ fun CoreEngine<ActivitiesState>.bindApp(): Completable =
         }
         .map {
             GlobalScope.launch {
-                run(globalActivityLogic(it))
+                run(globalActivityLogic(it).copy(tag = "globalActivityLogic -> ${it.javaClass.simpleName}"))
             }.invokeOnCompletion {
                 it?.printStackTrace()
             }
@@ -339,23 +341,23 @@ fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit>
         }.let { it toT Success(Unit) }
     }
 
-fun saveActivitiesInstanceState(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit> =
-        routeF { state, cxt ->
-            when (event) {
-                is ActivityLifeEvent.OnSaveInstanceState -> {
-                    val bundle = event.outState
+fun saveActivitiesInstanceState(event: ActivityLifeEvent, currentState: () -> ActivitiesState): YRoute<ActivitiesState, Unit> {
+    if (event is ActivityLifeEvent.OnSaveInstanceState) {
+        SaveInstanceActivityUtil.save(event.outState, currentState(), event.activity)
+        return routeId()
+    }
 
-                    SaveInstanceActivityUtil.routeSave(bundle, event.activity)
+    return routeF { state, cxt ->
+        when (event) {
+            is ActivityLifeEvent.OnCreate -> {
+                val bundle = event.savedInstanceState
+                if (bundle != null)
+                    SaveInstanceActivityUtil.routeRestore(bundle, event.activity)
                             .runRoute(state, cxt)
-                }
-                is ActivityLifeEvent.OnCreate -> {
-                    val bundle = event.savedInstanceState
-                    if (bundle != null)
-                        SaveInstanceActivityUtil.routeRestore(bundle, event.activity)
-                                .runRoute(state, cxt)
-                    else
-                        state toT Success(Unit)
-                }
-                else -> state toT Success(Unit)
+                else
+                    state toT Success(Unit)
             }
+            else -> state toT Success(Unit)
         }
+    }
+}

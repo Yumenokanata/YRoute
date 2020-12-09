@@ -8,6 +8,8 @@ import indi.yume.tools.yroute.datatype.Success
 import indi.yume.tools.yroute.datatype.YRoute
 import indi.yume.tools.yroute.datatype.routeF
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
@@ -58,16 +60,13 @@ object SaveInstanceActivityUtil {
     val lock = this
     private var savedMap: Map<Long, ActivityData> = emptyMap()
 
-    suspend fun save(bundle: Bundle, state: ActivitiesState, activity: Activity) {
+    fun save(bundle: Bundle, state: ActivitiesState, activity: Activity) {
         val target = state.list.find { it.activity == activity }
         if (target != null) {
             synchronized(lock) {
                 savedMap = savedMap + (target.hashTag to target)
             }
-            withContext(Dispatchers.Main) {
-                bundle.putLong(INTENT_KEY__ACTIVITY_TAG, target.hashTag)
-            }
-
+            bundle.putLong(INTENT_KEY__ACTIVITY_TAG, target.hashTag)
         }
     }
 
@@ -101,12 +100,6 @@ object SaveInstanceActivityUtil {
         } else oldState
     }
 
-    fun routeSave(bundle: Bundle, activity: Activity): YRoute<ActivitiesState, Unit> =
-            routeF { state, cxt ->
-                save(bundle, state, activity)
-                state toT Success(Unit)
-            }
-
     fun routeRestore(bundle: Bundle, activity: Activity): YRoute<ActivitiesState, Unit> =
             routeF { state, cxt ->
                 val newState = restore(bundle, state, activity)
@@ -120,37 +113,47 @@ object SaveInstanceFragmentUtil {
     val lock = this
     private var savedMap: Map<Long, FragSaveData> = emptyMap()
 
-    fun <F> save(fragment: F, bundle: Bundle) where F : Fragment, F : StackFragment {
-        val hashTag = fragment.controller.hashTag
-        if (hashTag != null) synchronized(lock) {
-            val param = if (fragment is FragmentParam<*>)
-                fragment.injector.firstElement().timeout(100, TimeUnit.MILLISECONDS)
-                        .blockingGet()
-            else null
-            savedMap = savedMap + (hashTag to FragSaveData(fragment.controller, param))
+    fun save(fragment: Fragment, bundle: Bundle) {
+        if (fragment is StackFragment) {
+            val hashTag = fragment.controller.hashTag
+            if (hashTag != null) synchronized(lock) {
+                val param = if (fragment is FragmentParam<*>)
+                    kotlin.runCatching { fragment.injector.firstElement().timeout(100, TimeUnit.MILLISECONDS)
+                            .blockingGet() }.getOrNull()
+                else null
+                savedMap = savedMap + (hashTag to FragSaveData(fragment.controller, param))
 
-            bundle.putLong(INTENT_KEY__FRAGMENT_TAG, hashTag)
+                bundle.putLong(INTENT_KEY__FRAGMENT_TAG, hashTag)
+            }
         }
     }
 
-    fun restore(bundle: Bundle, oldState: StackFragState<*, *>, fragment: Fragment): StackFragState<*, *> {
+    suspend fun restore(bundle: Bundle, oldState: StackFragState<*, *>, fragment: Fragment): StackFragState<*, *> = coroutineScope {
         val tag = if (bundle.containsKey(INTENT_KEY__FRAGMENT_TAG))
             bundle.getLong(INTENT_KEY__FRAGMENT_TAG)
         else null
 
-        return if (tag != null) {
-            if (fragment is StackFragment) synchronized(lock) {
-                val savedData = savedMap[tag]
-                if (savedData != null) {
-                    fragment.controller = savedData.controller
-                    if (fragment is FragmentParam<*> && savedData.param != null)
+        if (tag != null) {
+            if (fragment is StackFragment) {
+                val savedData = synchronized(lock) {
+                    val savedData = savedMap[tag]
+                    if (savedData != null) {
+                        fragment.controller = savedData.controller
+                    }
+                    savedMap = savedMap - tag
+                    savedData
+                }
+
+                if (fragment is FragmentParam<*> && savedData?.param != null) {
+                    launch(YRouteConfig.fragmentCreateContext) {
                         try {
                             fragment.unsafePutParam(savedData.param)
                         } catch (e: Throwable) {
                             Logger.d("restore", e.message ?: "unsafePutParam has error.")
                         }
+                    }
                 }
-                savedMap = savedMap - tag
+
             }
             oldState.restore(fragment, tag)
         } else oldState
