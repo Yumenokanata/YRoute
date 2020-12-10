@@ -1725,7 +1725,13 @@ fun <F> F.commonFragmentLifeLogicDefault(coreEval: () -> CoreEngine<ActivitiesSt
 fun <F> saveAndRestoreLogic(event: FragmentLifeEvent): YRoute<StackFragState<F, StackType<F>>, Unit>
         where F : Fragment {
     if (event is FragmentLifeEvent.OnSaveInstanceState) {
-        SaveInstanceFragmentUtil.save(event.fragment, event.outState)
+        if (isMainThread()) {
+            SaveInstanceFragmentUtil.save(event.fragment, event.outState)
+        } else {
+            AndroidSchedulers.mainThread().scheduleDirect {
+                SaveInstanceFragmentUtil.save(event.fragment, event.outState)
+            }
+        }
         return routeId()
     }
 

@@ -63,10 +63,10 @@ object SaveInstanceActivityUtil {
     fun save(bundle: Bundle, state: ActivitiesState, activity: Activity) {
         val target = state.list.find { it.activity == activity }
         if (target != null) {
+            bundle.putLong(INTENT_KEY__ACTIVITY_TAG, target.hashTag)
             synchronized(lock) {
                 savedMap = savedMap + (target.hashTag to target)
             }
-            bundle.putLong(INTENT_KEY__ACTIVITY_TAG, target.hashTag)
         }
     }
 
@@ -116,14 +116,15 @@ object SaveInstanceFragmentUtil {
     fun save(fragment: Fragment, bundle: Bundle) {
         if (fragment is StackFragment) {
             val hashTag = fragment.controller.hashTag
-            if (hashTag != null) synchronized(lock) {
-                val param = if (fragment is FragmentParam<*>)
-                    kotlin.runCatching { fragment.injector.firstElement().timeout(100, TimeUnit.MILLISECONDS)
-                            .blockingGet() }.getOrNull()
-                else null
-                savedMap = savedMap + (hashTag to FragSaveData(fragment.controller, param))
-
+            if (hashTag != null) {
                 bundle.putLong(INTENT_KEY__FRAGMENT_TAG, hashTag)
+                synchronized(lock) {
+                    val param = if (fragment is FragmentParam<*>)
+                        kotlin.runCatching { fragment.injector.firstElement().timeout(100, TimeUnit.MILLISECONDS)
+                                .blockingGet() }.getOrNull()
+                    else null
+                    savedMap = savedMap + (hashTag to FragSaveData(fragment.controller, param))
+                }
             }
         }
     }

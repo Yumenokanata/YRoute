@@ -11,6 +11,7 @@ import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
 import io.reactivex.Completable
 import io.reactivex.Maybe
+import io.reactivex.android.schedulers.AndroidSchedulers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -343,7 +344,13 @@ fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit>
 
 fun saveActivitiesInstanceState(event: ActivityLifeEvent, currentState: () -> ActivitiesState): YRoute<ActivitiesState, Unit> {
     if (event is ActivityLifeEvent.OnSaveInstanceState) {
-        SaveInstanceActivityUtil.save(event.outState, currentState(), event.activity)
+        if (isMainThread()) {
+            SaveInstanceActivityUtil.save(event.outState, currentState(), event.activity)
+        } else {
+            AndroidSchedulers.mainThread().scheduleDirect {
+                SaveInstanceActivityUtil.save(event.outState, currentState(), event.activity)
+            }
+        }
         return routeId()
     }
 
