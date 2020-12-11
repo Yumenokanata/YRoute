@@ -4,43 +4,51 @@
 
 Functional Route Util for Android
 
-This is a routing library for Android, use `Kotlin coroutines` and functional library [Arrow](https://github.com/arrow-kt/arrow) as the core, and it is built based on the combinator-oriented idea of the functional paradigm.
- 
-The goal is to build a flexible, simple structure, static type routing library
+这是一个用于Android的路由库，使用了函数式库[Arrow](https://github.com/arrow-kt/arrow)的部分数据结构作为核心，本身基于函数范式的面向组合子思想构建，目标是构建一个灵活、结构简单、静态类型的路由库
+
+本库目前已在项目中实践许久, 如果有其他需要添加的功能欢迎通过Issue提出
 
 特性：
-1. The core is simplified to only the composite type `YRoute` and the runner `CoreEngine`
-2. Static type
-3. Based on combinator-oriented programming, there is no complicated inheritance structure, hierarchical concept, only the combination of `YRoute`
-4. State and logic are separated, state protected by the core, so logic can be combined safely and flexibly
-5. Unlike `Redux` or `Flux` which separate side effects through the `Middleware` structure, YRoute uses the coroutine `suspend` to separate side effects, which is more flexible, composable, and contagious
-6. The core type `YRoute` is a monad and has no side effects, so it can be combined and created arbitrarily
-7. It does not restrict the use of `CoreEngine` in the global singleton mode, and you can also create a sub-Core or a completely independent Core
+1. 核心简化到只有组合类型`YRoute`和运行器`CoreEngine`
+2. 多种范型技法实现的静态类型
+3. 基于面向组合子编程构建，没有复杂的继承结构、分层概念，只有`YRoute`的组合
+4. 状态和逻辑分离，全局只有被核心保护的一个状态，因此逻辑可以被安全、灵活地组合
+5. 不同于Redux和Flux的通过Middleware结构分离副作用，YRoute使用协程`suspend`分离副作用，更加灵活和具有组合性, 以及传染性
+6. 核心类型`YRoute`是一个单子，也是无副作用的，因此可以被任意组合和创建
+7. 并不限制全局单例方式使用`CoreEngine`，也可以创建子Core或者完全独立的Core
 
 ---
 
 ## 开发进程
 
-1. Activity lifecycle management
-2. Start Activity in Rx mode
-3. Activity of multi-stack Fragment
-4. The same startFragment and finishFragment operation methods as Activity
-5. startFragmentForResult (onFragmentResult callback method)
-6. startFragmentForRx and startActivityForRx
-7. Fragment and Activity start and exit animation control
-8. onShow and onHide callback methods
-9. StackActivity is divided into Single and Table, supporting different modes of single stack and multi stack
-10. Support global Activity life cycle management
-11. Support to start Route from Uri
-12. You can choose to construct two routes: ordinary `YRoute` without parameters and `LazyYRoute` with parameters
-13. Fragment and Activity do not need to inherit a certain basic class (but need to implement some basic interfaces)
-14. The new parameter transfer interface can support parameter transfer in ways other than Intent, and can transfer any type of object (including non-serializable types)
-15. You can get the result of Route running, failure or success, or even get the new Activity started after `startActivity`
+### 第一阶段：完成[FragmentManager](https://github.com/Yumenokanata/FragmentManager)功能覆盖
+
+1. ~~Activity生命周期管理~~
+2. ~~Rx方式启动Activity~~
+3. ~~多栈Fragment的Activity~~
+4. ~~与Activity相同的startFragment和finishFragment操作方式~~
+5. ~~startFragmentForResult（onFragmentResult回调方法）~~
+6. ~~startFragmentForRx和startActivityForRx~~
+7. ~~Fragment和Activity的启动和退出动画控制~~
+8. ~~onShow和onHide回调方法~~
+
+**Tips(2019/08): 现已完成对[FragmentManager](https://github.com/Yumenokanata/FragmentManager)库主要功能的90%覆盖**
+
+当然相比FragmentManager功能还有一些已经完成的额外功能：
+1. StackActivity分为了Single和Table两种，支持单栈和多栈的不同模式
+2. 支持全局的Activity生命周期管理
+3. 支持从Uri启动Route
+4. 可选择构建无参的普通`YRoute`和有参数的`LazyYRoute`两种路由
+5. Fragment和Activity不需要强继承某个基础类了（但需要实现一些基础接口）
+6. 新的传参接口，可以支持Intent之外的方式传参，可以传递任意类型的对象（包括不可序列化的类型）
+7. 可以获取Route运行的结果，失败或者成功，甚至获取startActivity之后启动的新Activity
+
+**Tips(2020/11): 现已重构为以Kotlin协程作为核心**
 
 ---
 
-## Add to Project
-Step1: Add in root build.gradle:
+## 添加到Android studio
+Step1: 在根build.gradle中添加仓库：
 ```groovy
 allprojects {
 	repositories {
@@ -50,7 +58,7 @@ allprojects {
 }
 ```
 
-Step2: Add dependencies in target module:
+Step2: 在工程中添加依赖：
 ```groovy
 dependencies {
     implementation 'com.github.Yumenokanata:YRoute:x.y.z'
@@ -113,39 +121,41 @@ launch {
 }
 ```
 
-## [FragmentManager](https://github.com/Yumenokanata/FragmentManager)Alternative use of this library
+## [FragmentManager](https://github.com/Yumenokanata/FragmentManager)库的替代使用
 
-[Sample code](https://github.com/Yumenokanata/YRoute/tree/master/sample/src/main/java/indi/yume/tools/yroute/sample/fragmentmanager), the main alternative class is:
+可参照[sample包](https://github.com/Yumenokanata/YRoute/tree/master/sample/src/main/java/indi/yume/tools/yroute/sample/fragmentmanager)下的示例使用, 主要替代类为:
 
-1. BaseFragmentManagerActivity -> indi.yume.tools.yroute.fragmentmanager.BaseTableActivity<F> and BaseSingleActivity<F>
+1. BaseFragmentManagerActivity -> indi.yume.tools.yroute.fragmentmanager.BaseTableActivity<F> 和 BaseSingleActivity<F>
 2. BaseManagerFragment -> indi.yume.tools.yroute.fragmentmanager.BaseManagerFragment
 
-## Usage
+## 详细使用方法
 
-The library has two core types: `YRoute<S, R>` and `CoreEngine`. The steps to use are
+库有两个核心类型：`YRoute<S, R>`和`CoreEngine`，使用步骤就是
 
-1. Build `YRoute`
-2. Put into `CoreEngine` to run
+1. 构造YRoute
+2. 放入CoreEngine运行
 
-### 1. Build YRoute
+### 1. 构造YRoute
 
-The two paradigms of `YRoute<S, R>` are: the State data type corresponding to `S`, and the return value after running the `R` route
+`YRoute<S, R>`的两个范型为：`S`对应的State数据类型、`R`路由运行后的返回值
 
-The `YRoute<S, R>` type can be regarded as a pure function:
+`YRoute<S, R>`类型可以看作一个纯函数：
 
 ```
 suspend (S, Cxt) -> Pair<S, YResult<R>>
 ```
 
-The meaning is: input the current state `S` and the context `Cxt`, and output a new state and the running result `YResult<R>`
+意义为：输入当前状态`S`和上下文`Cxt`, 输出一个被协程函数包裹的新的状态和运行结果`YResult<R>`
 
-There are currently some functional routes developed in the library:
+因为这只是个函数， 因此可以任意构造新的Route添加新的功能，不同的Route之间可以相互组合
+
+库中目前已经开发有一些功能性的路由：
 
 #### ActivitiesRoute
 
-The corresponding State is `ActivitiesState`, which saves the state of all Activities
+对应的State为`ActivitiesState`, 其中保存着所有Activity的状态
 
-The routes are:
+路由有：
 
 ```kotlin
 object ActivitiesRoute {
@@ -165,9 +175,9 @@ object ActivitiesRoute {
 
 #### StackRoute
 
-This is a route similar to the FragmentManager library that manages the Fragment stack in the Activity, but compared to the FragmentManager library, it can choose a single stack or multi-stack switching, and it can be in the Activity without limitation, and it can also manage the Fragment nested in the ParentFragment mode; and Not limited to having to inherit the base class.
+这是一个类似FragmentManager库的管理Activity中Fragment栈的路由，但相比FragmentManager库可以自选单栈还是可多栈切换，并且可以不限制必须在Activity中，也可以管理ParentFragment方式嵌套的Fragment；而且不限制于必须继承基础类
 
-Activity or Fragment as a container needs to inherit `StackHost<F, out Type: StackType<F>>`:
+作为容器的Activity或者Fragment需要继承`StackHost<F, out Type : StackType<F>>`：
 
 ```kotlin
 abstract class FragmentTableActivity : FragmentActivity(), StackHost<BaseFragment, StackType.Table<BaseFragment> {
@@ -188,7 +198,7 @@ abstract class FragmentTableActivity : FragmentActivity(), StackHost<BaseFragmen
 }
 ```
 
-As a managed sub-Fragment, you need to implement the `StackFragment` interface:
+而作为被管理的子Fragment需要实现`StackFragment`接口：
 
 ```kotlin
 class FragmentPage1 : Fragment(), StackFragment {
@@ -198,8 +208,7 @@ class FragmentPage1 : Fragment(), StackFragment {
 }
 ```
 
-The managed Fragment can choose to implement the `FragmentParam<T>` interface:
-
+被管理的Fragment可以选择实现`FragmentParam<T>`接口：
 ```kotlin
 class FragmentPage1 : Fragment(), StackFragment, FragmentParam<ParamModel> {
     override val injector: Subject<OtherParam> = FragmentParam.defaultInjecter()
@@ -215,17 +224,17 @@ class FragmentPage1 : Fragment(), StackFragment, FragmentParam<ParamModel> {
 }
 ```
 
-This way, when building a `FragmentBuilder` that implements the `FragmentParam<T>` interface, a method `withParam()` will be added:
+这样构建实现了`FragmentParam<T>`接口的`FragmentBuilder`时会增加一个方法`withParam()`：
 
 ```kotlin
 FragmentBuilder(FragmentPage1::class.java)
         .withParam(OtherParam("This is param.")
 ```
 
-In this way, any type of parameter can be injected.
+这样可以实现注入任意类型参数。
 
 
-After the above work is completed, StackRoute can be used. The routing functions are:
+以上工作完成后就可以使用StackRoute了，路由功能有：
 
 ```kotlin
 object StackRoute {
@@ -302,7 +311,7 @@ object StackRoute {
 
 #### UriRoute
 
-Route to jump by Uri string:
+通过Uri字符串进行跳转的路由：
 
 ```kotlin
 val routeNavi = UriRoute.build("main") {
@@ -319,11 +328,11 @@ val routeNavi = UriRoute.build("main") {
 routeNavi.withParam("route://main/test/other").start(core) // return IO<Result<Any?>>
 ```
 
-### 2. Run YRoute
+### 2. 运行YRoute
 
-YRoute is an `Action` that transforms according to the current context and state. It needs to be actually executed in `CoreEngine`
+YRoute是根据当前上下文和状态进行变换的`Action`, 它需要在`CoreEngine`中才会被实际执行
 
-`CoreEngine` is an interface that describes the usual method of running YRoute:
+`CoreEngine`是一个接口，描述了通常的运行YRoute方法：
 
 ```kotlin
 interface CoreEngine<S> {
@@ -343,7 +352,7 @@ interface CoreEngine<S> {
 }
 ```
 
-You can implement this interface yourself to provide different operating modes. By default, a `MainCoreEngine` is implemented, and the run queue is managed through Rx, running serially:
+可以自己实现该接口以提供不同的运行方式方式，默认实现了一个`MainCoreEngine`，通过Rx来进行运行队列的管理，串行运行：
 
 ```kotlin
 MainCoreEngine.apply {
@@ -352,7 +361,7 @@ MainCoreEngine.apply {
 }
 ```
 
-After the Core is created, you can run YRoute:
+Core创建好后就可以运行YRoute了：
 
 ```kotlin
 routeStartStackActivity(ActivityBuilder(FragmentStackActivity::class.java)) // YRoute
@@ -363,7 +372,7 @@ lazyR1(routeStartStackActivity(ActivityBuilder(FragmentStackActivity::class.java
     .start(core) //suspend Result<R>
 ```
 
-If you don't want to execute the route immediately, you can use the `startLazy` method:
+如果不希望马上执行该路由, 可以使用`startLazy`方法:
 
 ```kotlin
 routeStartStackActivity(ActivityBuilder(FragmentStackActivity::class.java)) // YRoute
@@ -374,13 +383,13 @@ lazyR1(routeStartStackActivity(ActivityBuilder(FragmentStackActivity::class.java
     .startLazy(core) //SuspendP<Result<R>>
 ```
 
-`SuspendP` can be converted to Rx stream and then started with Rx:
+`SuspendP`可以转换为Rx流后用Rx启动：
 
 ```kotlin
 suspendP.asSingle()
 ```
 
-After the actual executed, you can get a value of type `YResult`, which has two optional types, `Success` and `Fail`, representing whether the result is success or failure
+而实际运行后, 可以得到一个`YResult`类型的值，它有`Success`和`Fail`两种可选类型，代表结果是成功还是失败
 
 ```kotlin
 sealed class YResult<out T> : YResultOf<T>
@@ -391,47 +400,47 @@ data class Fail(val message: String, val error: Throwable? = null) : YResult<Not
 
 ---
 
-Routes can be freely combined to achieve more complex custom functions:
+路由直接可以进行组合以实现更复杂的自定义功能:
 
 ```kotlin
-// Use Monad to combine:
+// 使用Monad方式进行组合:
 StackRoute.run { YRoute.monadError<StackFragState<BaseFragment, StackType.Table<BaseFragment>>>().fx.monad {
     val currentStackTab = !routeFromState<StackFragState<BaseFragment, StackType.Table<BaseFragment>>, String?> { it.stack.current?.first }
     
     if (currentStackTab == tab) {
-        // If the Tab to be switched is the current Tab
+        // 如果待切换的Tab是当前所在的Tab
         val currentStackSize = !routeFromState<StackFragState<BaseFragment, StackType.Table<BaseFragment>>, Int> {
             it.stack.table[it.stack.current?.first]?.size ?: 0
         }
         if (currentStackSize > 1)
-            // If the current Tab is not at the top level, return to the top level Fragment
+            // 如果当前Tab不是在顶层则返回顶层界面
             !routeBackToTopForTable<BaseFragment>()
         else
-            // If you are currently at the top Fragment, restart the top Fragment
+            // 如果当前就是在顶层界面, 则重启顶层界面
             !routeClearCurrentStackForTable<BaseFragment>(true)
     } else {
-        // Switch Tab directly
+        // 直接切换Tab
         !routeSwitchTag<BaseFragment>(tag)
     }
     Unit
 }.fix() runAtA this@MainBaseActivity }
 
-// Use Route constructor to combine:
+// 使用Route构造函数的方式进行组合:
 routeF<StackFragState<BaseFragment, StackType.Table<BaseFragment>>, Unit> { state, routeCxt ->
     val currentStackTab = state.stack.current?.first
     val (newState, _) = if (currentStackTab == tab) {
-        // If the Tab to be switched is the current Tab
+        // 如果待切换的Tab是当前所在的Tab
         val currentStackSize = state.stack.table[state.stack.current?.first]?.size ?: 0
         if (currentStackSize > 1)
-            // If the current Tab is not at the top level, return to the top level Fragment
+            // 如果当前Tab不是在顶层则返回顶层界面
             StackRoute.routeBackToTopForTable<BaseFragment>()
                     .runRoute(state, routeCxt)
         else
-            // If you are currently at the top Fragment, restart the top Fragment
+            // 如果当前就是在顶层界面, 则重启顶层界面
             StackRoute.routeClearCurrentStackForTable<BaseFragment>(true)
                     .runRoute(state, routeCxt)
     } else {
-        // Switch Tab directly
+        // 直接切换Tab
         StackRoute.routeSwitchTag<BaseFragment>(tag)
                 .runRoute(state, routeCxt)
     }
@@ -441,13 +450,13 @@ routeF<StackFragState<BaseFragment, StackType.Table<BaseFragment>>, Unit> { stat
 
 ---
 
-## Next
+## 下一步
 
-Provide routing support for Jetpack Compose
+提供Jetpack Compose的路由支持
 
 ---
 
-## Related articles
+## 相关文章
 
 [YRoute开发随笔](https://segmentfault.com/a/1190000019575543)
 

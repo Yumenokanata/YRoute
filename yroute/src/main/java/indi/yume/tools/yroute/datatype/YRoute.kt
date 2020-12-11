@@ -44,6 +44,16 @@ fun <T> YResult<T>.toEither(): Either<Fail, T> = when (this) {
     is Success -> t.right()
 }
 
+fun <T: Any> YResult<T>.getOrNull(): T? = when (this) {
+    is Fail -> null
+    is Success -> t
+}
+
+fun <T: Any> YResult<T>.getOr(defaultV: T): T = when (this) {
+    is Fail -> defaultV
+    is Success -> t
+}
+
 typealias SuspendP<R> = suspend () -> R
 //</editor-fold>
 
