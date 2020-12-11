@@ -4,11 +4,13 @@
 
 Functional Route Util for Android
 
+[中文文档](https://github.com/Yumenokanata/YRoute/blob/master/README_CN.md)
+
 This is a routing library for Android, use `Kotlin coroutines` and functional library [Arrow](https://github.com/arrow-kt/arrow) as the core, and it is built based on the combinator-oriented idea of the functional paradigm.
  
 The goal is to build a flexible, simple structure, static type routing library
 
-特性：
+Features：
 1. The core is simplified to only the composite type `YRoute` and the runner `CoreEngine`
 2. Static type
 3. Based on combinator-oriented programming, there is no complicated inheritance structure, hierarchical concept, only the combination of `YRoute`
@@ -19,7 +21,7 @@ The goal is to build a flexible, simple structure, static type routing library
 
 ---
 
-## 开发进程
+## Basic features
 
 1. Activity lifecycle management
 2. Start Activity in Rx mode
@@ -77,7 +79,7 @@ class App : Application() {
     }
 }
 
-// 使用
+// Use
 launch {
     StackRoute
         .startStackFragActivity(ActivityBuilder(FragmentStackActivity::class.java))
