@@ -275,9 +275,10 @@ object ActivitiesRoute {
 fun CoreEngine<ActivitiesState>.bindApp(): Completable =
     routeCxt.globalActivityLife.bindActivityLife()
         .map { event ->
+            val route = saveActivitiesInstanceState(event) { runBlocking { getCurrentState() } }
+                    .copy(tag = "saveActivitiesInstanceState -> ${event.javaClass.simpleName}")
             GlobalScope.launch {
-                run(saveActivitiesInstanceState(event) { runBlocking { getCurrentState() } }
-                        .copy(tag = "saveActivitiesInstanceState -> ${event.javaClass.simpleName}"))
+                run(route)
             }.invokeOnCompletion {
                 it?.printStackTrace()
             }
@@ -291,8 +292,6 @@ fun CoreEngine<ActivitiesState>.bindApp(): Completable =
             }
         }
         .ignoreElements()
-
-private const val SAVE_STORE_HASH_TAG = "manager__hash_tag"
 
 fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit> =
     routeF { state, cxt ->
@@ -309,24 +308,10 @@ fun globalActivityLogic(event: ActivityLifeEvent): YRoute<ActivitiesState, Unit>
                         )
                     )
                 } else {
-                    val savedHashTag = event.savedInstanceState?.getString(SAVE_STORE_HASH_TAG)?.toLongOrNull()
-                    if (savedHashTag != null) {
-                        state.copy(list = state.list.map {
-                            if (it.hashTag == savedHashTag)
-                                it.copy(activity = event.activity)
-                            else it
-                        })
-                    } else state
+                    state
                 }
 
                 newState
-            }
-            is ActivityLifeEvent.OnSaveInstanceState -> {
-                val item = state.list.firstOrNull { it.activity === event.activity }
-                if (item != null)
-                    event.outState.apply { putString(SAVE_STORE_HASH_TAG, item.hashTag.toString()) }
-
-                state
             }
             is ActivityLifeEvent.OnDestroy -> {
                 Logger.d("globalActivityLogic OnDestroy", "start find: ${event.activity.hashCode()}")
