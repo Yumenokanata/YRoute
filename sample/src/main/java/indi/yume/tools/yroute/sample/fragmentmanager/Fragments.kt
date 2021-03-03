@@ -13,7 +13,7 @@ import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.fragmentmanager.BaseManagerFragment
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
-import io.reactivex.subjects.Subject
+import io.reactivex.rxjava3.subjects.Subject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel

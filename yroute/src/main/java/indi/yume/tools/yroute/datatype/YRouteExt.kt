@@ -2,7 +2,6 @@ package indi.yume.tools.yroute.datatype
 
 import arrow.core.*
 import arrow.typeclasses.*
-import arrow.typeclasses.suspended.monad.commutative.safe.Fx
 import indi.yume.tools.yroute.YRouteException
 
 //@extension
@@ -112,14 +111,6 @@ interface YRouteMonadError<S> : MonadError<YRoutePartialOf<S>, Throwable>, YRout
 interface YRouteMonadThrow<S> : MonadThrow<YRoutePartialOf<S>>, YRouteMonadError<S> {
 }
 
-//@extension
-interface YRouteFx<S> : Fx<YRoutePartialOf<S>> {
-
-    override fun monad(): Monad<YRoutePartialOf<S>> =
-            YRoute.monad()
-
-}
-
 fun <S> YRoute.Companion.functor(): YRouteFunctor<S> = object : YRouteFunctor<S> { }
 
 fun <S> YRoute.Companion.applicative(): YRouteApplicative<S> = object : YRouteApplicative<S> { }
@@ -132,4 +123,3 @@ fun <S> YRoute.Companion.monadError(): YRouteMonadError<S> = object : YRouteMona
 
 fun <S> YRoute.Companion.monadThrow(): YRouteMonadThrow<S> = object : YRouteMonadThrow<S> { }
 
-fun <S> YRoute.Companion.fx(): YRouteFx<S> = object : YRouteFx<S> { }

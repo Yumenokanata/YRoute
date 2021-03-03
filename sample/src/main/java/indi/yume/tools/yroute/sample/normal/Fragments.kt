@@ -14,8 +14,8 @@ import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
-import io.reactivex.subjects.Subject
-import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.subjects.Subject
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import kotlinx.coroutines.*
 
 abstract class BaseFragment : Fragment(), StackFragment, FragmentLifecycleOwner, CoroutineScope by MainScope() {

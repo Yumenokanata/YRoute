@@ -9,12 +9,12 @@ import arrow.core.*
 import arrow.higherkind
 import arrow.optics.Lens
 import indi.yume.tools.yroute.*
-import io.reactivex.Completable
-import io.reactivex.Observable
-import io.reactivex.subjects.PublishSubject
-import io.reactivex.subjects.Subject
+import io.reactivex.rxjava3.core.Completable
+import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.subjects.PublishSubject
+import io.reactivex.rxjava3.subjects.Subject
 import kotlinx.coroutines.*
-import kotlinx.coroutines.rx2.rxCompletable
+import kotlinx.coroutines.rx3.rxCompletable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
@@ -461,39 +461,32 @@ class RouteCxt private constructor(val app: Application) {
     }
 
     val callback: Application.ActivityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
-        override fun onActivityPaused(activity: Activity?) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnPause(activity))
+        override fun onActivityPaused(activity: Activity) {
+            globalActivityLife.makeState(ActivityLifeEvent.OnPause(activity))
         }
 
-        override fun onActivityResumed(activity: Activity?) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnResume(activity))
+        override fun onActivityResumed(activity: Activity) {
+            globalActivityLife.makeState(ActivityLifeEvent.OnResume(activity))
         }
 
-        override fun onActivityStarted(activity: Activity?) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnStart(activity))
+        override fun onActivityStarted(activity: Activity) {
+            globalActivityLife.makeState(ActivityLifeEvent.OnStart(activity))
         }
 
-        override fun onActivityDestroyed(activity: Activity?) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnDestroy(activity))
+        override fun onActivityDestroyed(activity: Activity) {
+            globalActivityLife.makeState(ActivityLifeEvent.OnDestroy(activity))
         }
 
-        override fun onActivitySaveInstanceState(activity: Activity?, outState: Bundle) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnSaveInstanceState(activity, outState))
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {
+            globalActivityLife.makeState(ActivityLifeEvent.OnSaveInstanceState(activity, outState))
         }
 
-        override fun onActivityStopped(activity: Activity?) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnStop(activity))
+        override fun onActivityStopped(activity: Activity) {
+            globalActivityLife.makeState(ActivityLifeEvent.OnStop(activity))
         }
 
-        override fun onActivityCreated(activity: Activity?, savedInstanceState: Bundle?) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnCreate(activity, savedInstanceState))
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+            globalActivityLife.makeState(ActivityLifeEvent.OnCreate(activity, savedInstanceState))
         }
 
     }

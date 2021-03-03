@@ -12,8 +12,8 @@ import androidx.fragment.app.FragmentActivity
 import arrow.core.*
 import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.*
-import io.reactivex.subjects.Subject
-import kotlinx.coroutines.rx2.await
+import io.reactivex.rxjava3.subjects.Subject
+import kotlinx.coroutines.rx3.await
 
 abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Fragment, F : StackFragment {
     abstract val core: CoreEngine<ActivitiesState>

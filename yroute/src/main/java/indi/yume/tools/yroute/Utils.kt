@@ -23,14 +23,14 @@ import arrow.optics.Lens
 import arrow.typeclasses.Monoid
 import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.datatype.Success
-import io.reactivex.*
-import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.PublishSubject
-import io.reactivex.subjects.Subject
+import io.reactivex.rxjava3.core.*
+import io.reactivex.rxjava3.subjects.BehaviorSubject
+import io.reactivex.rxjava3.subjects.PublishSubject
+import io.reactivex.rxjava3.subjects.Subject
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.rx2.rxSingle
+import kotlinx.coroutines.rx3.rxSingle
 import kotlinx.coroutines.withContext
-import io.reactivex.disposables.Disposable as RxDisposable
+import io.reactivex.rxjava3.disposables.Disposable as RxDisposable
 import java.lang.Exception
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
@@ -231,7 +231,7 @@ private val typeFake = TypeCheck<Nothing>()
 @Suppress("UNCHECKED_CAST")
 fun <T> type(): TypeCheck<T> = typeFake as TypeCheck<T>
 
-fun <T> Maybe<T>.toIO(): IO<Option<T>> = map { it.some() }.toSingle(none()).toIO()
+fun <T> Maybe<T>.toIO(): IO<Option<T>> = map { it.some() }.defaultIfEmpty(none()).toIO()
 
 fun <T> Single<T>.toIO(): IO<T> = IO.cancelable { cb ->
     val disposable = subscribe({ cb(it.right()) }, { cb(it.left()) })
@@ -301,23 +301,23 @@ internal fun <T, R> constantsF1S(c: R): suspend (T) -> R = { c }
 internal fun <T1, T2, R> constantsF2S(c: R): suspend (T1, T2) -> R = { t1, t2 -> c }
 
 
-fun Completable.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+fun Completable.catchSubscribe(): RxDisposable = subscribe(
         { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
-fun <T> Single<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+fun <T> Single<T>.catchSubscribe(): RxDisposable = subscribe(
         { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
-fun <T> Maybe<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+fun <T> Maybe<T>.catchSubscribe(): RxDisposable = subscribe(
         { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
-fun <T> Observable<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+fun <T> Observable<T>.catchSubscribe(): RxDisposable = subscribe(
         { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 
-fun <T> Flowable<T>.catchSubscribe(): io.reactivex.disposables.Disposable = subscribe(
+fun <T> Flowable<T>.catchSubscribe(): RxDisposable = subscribe(
         { }, { if (YRouteConfig.showLog) it.printStackTrace() }
 )
 

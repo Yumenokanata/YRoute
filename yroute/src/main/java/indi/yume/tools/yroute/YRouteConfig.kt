@@ -12,8 +12,6 @@ object YRouteConfig {
     var showLog: Boolean = BuildConfig.DEBUG
 
     var taskRunnerTimeout: Long? = 5000
-
-    var fragmentCreateContext: CoroutineContext = Dispatchers.IO
 }
 
 suspend fun FragmentTransaction.routeExecFT(): Unit = YRouteConfig.FragmentExecFunc(this)

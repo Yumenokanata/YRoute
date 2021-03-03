@@ -14,10 +14,10 @@ import indi.yume.tools.yroute.datatype.CoreEngine
 import indi.yume.tools.yroute.datatype.flatMapR
 import indi.yume.tools.yroute.datatype.start
 import indi.yume.tools.yroute.datatype.startLazy
-import io.reactivex.subjects.Subject
+import io.reactivex.rxjava3.subjects.Subject
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.rx2.await
+import kotlinx.coroutines.rx3.await
 
 abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActivity(), ActivityLifecycleOwner, StackHost<F, T>
         where F : Fragment, F : StackFragment {

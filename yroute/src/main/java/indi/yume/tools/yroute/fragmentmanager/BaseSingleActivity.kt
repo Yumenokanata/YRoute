@@ -33,4 +33,4 @@ suspend fun <A, F> A.getTopOfStack(): F?
 
 suspend fun <A, F> A.isTopOfStack(fragment: F): Boolean
         where F : Fragment, F : StackFragment, A : BaseFragmentManagerActivity<F, StackType.Single<F>> =
-        getTopOfStack() == fragment
+        getTopOfStack() === fragment

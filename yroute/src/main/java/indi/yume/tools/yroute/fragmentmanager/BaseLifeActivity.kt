@@ -8,7 +8,7 @@ import android.os.PersistableBundle
 import androidx.appcompat.app.AppCompatActivity
 import indi.yume.tools.yroute.ActivityLifeEvent
 import indi.yume.tools.yroute.ActivityLifecycleOwner
-import io.reactivex.subjects.Subject
+import io.reactivex.rxjava3.subjects.Subject
 
 abstract class BaseLifeActivity : AppCompatActivity(), ActivityLifecycleOwner {
     override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()

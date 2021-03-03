@@ -1,10 +1,10 @@
 package indi.yume.tools.yroute
 
 import indi.yume.tools.yroute.datatype.Fail
-import io.reactivex.Observable
-import io.reactivex.Single
-import io.reactivex.schedulers.Schedulers
-import io.reactivex.subjects.PublishSubject
+import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.core.Single
+import io.reactivex.rxjava3.schedulers.Schedulers
+import io.reactivex.rxjava3.subjects.PublishSubject
 import org.junit.Test
 import java.lang.RuntimeException
 import java.net.URI

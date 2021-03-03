@@ -146,7 +146,7 @@ object SaveInstanceFragmentUtil {
                 }
 
                 if (fragment is FragmentParam<*> && savedData?.param != null) {
-                    launch(YRouteConfig.fragmentCreateContext) {
+                    launch(Dispatchers.Main) {
                         try {
                             fragment.unsafePutParam(savedData.param)
                         } catch (e: Throwable) {

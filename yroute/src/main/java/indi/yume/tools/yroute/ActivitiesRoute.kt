@@ -9,13 +9,13 @@ import arrow.core.andThen
 import arrow.core.toT
 import indi.yume.tools.yroute.YRouteConfig.globalDefaultAnimData
 import indi.yume.tools.yroute.datatype.*
-import io.reactivex.Completable
-import io.reactivex.Maybe
-import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.core.Completable
+import io.reactivex.rxjava3.core.Maybe
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.rx2.await
+import kotlinx.coroutines.rx3.await
 import kotlin.random.Random
 
 data class ActivitiesState(val list: List<ActivityData>)
