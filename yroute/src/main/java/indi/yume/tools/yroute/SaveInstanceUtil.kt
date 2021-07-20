@@ -54,18 +54,33 @@ object SaveInstanceUtil {
     inline fun <reified T> restore(bundle: Bundle): T? = restore(bundle, T::class.java)
 }
 
+data class ActivitySavedData(
+    val hashTag: Long,
+    val extra: Map<String, Any> = emptyMap(),
+    val animData: AnimData?
+) {
+    constructor(activityData: ActivityData): this(
+        activityData.hashTag,
+        activityData.extra,
+        activityData.animData
+    )
+
+    fun asActivityData(activity: Activity) =
+        ActivityData(activity, hashTag, extra, animData)
+}
+
 object SaveInstanceActivityUtil {
     const val INTENT_KEY__ACTIVITY_TAG = "intent_key__activity_tag"
 
     val lock = this
-    private var savedMap: Map<Long, ActivityData> = emptyMap()
+    private var savedMap: Map<Long, ActivitySavedData> = emptyMap()
 
     fun save(bundle: Bundle, state: ActivitiesState, activity: Activity) {
         val target = state.list.find { it.activity == activity }
         if (target != null) {
             bundle.putLong(INTENT_KEY__ACTIVITY_TAG, target.hashTag)
             synchronized(lock) {
-                savedMap = savedMap + (target.hashTag to target)
+                savedMap = savedMap + (target.hashTag to ActivitySavedData(target))
             }
         }
     }
@@ -80,7 +95,7 @@ object SaveInstanceActivityUtil {
                 val target = savedMap[tag]
                 savedMap = savedMap - tag
                 target
-            }?.copy(activity = activity)
+            }?.asActivityData(activity = activity)
 
             val stackExtra = targetData?.getStackExtra()
             val newStackExtra = stackExtra?.restore(activity)
