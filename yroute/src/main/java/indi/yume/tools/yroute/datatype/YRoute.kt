@@ -11,6 +11,7 @@ import arrow.optics.Lens
 import indi.yume.tools.yroute.*
 import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.*
@@ -456,44 +457,45 @@ class RouteCxt private constructor(val app: Application) {
 
     private val streamSubject: Subject<Completable> = PublishSubject.create()
 
-    val globalActivityLife = object : ActivityLifecycleOwner {
-        override val lifeSubject: Subject<ActivityLifeEvent> = ActivityLifecycleOwner.defaultLifeSubject()
-    }
+    private val globalActivityLife : Subject<Option<ActivityLifeEvent>> =
+        BehaviorSubject.create<Option<ActivityLifeEvent>>().toSerialized()
 
-    val callback: Application.ActivityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
+    private val callback: Application.ActivityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityPaused(activity: Activity?) {
             if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnPause(activity))
+                globalActivityLife.onNext(ActivityLifeEvent.OnPause(activity).some())
         }
 
         override fun onActivityResumed(activity: Activity?) {
             if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnResume(activity))
+                globalActivityLife.onNext(ActivityLifeEvent.OnResume(activity).some())
         }
 
         override fun onActivityStarted(activity: Activity?) {
             if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnStart(activity))
+                globalActivityLife.onNext(ActivityLifeEvent.OnStart(activity).some())
         }
 
         override fun onActivityDestroyed(activity: Activity?) {
-            if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnDestroy(activity))
+            if (activity != null) {
+                globalActivityLife.onNext(ActivityLifeEvent.OnDestroy(activity).some())
+                globalActivityLife.onNext(none())
+            }
         }
 
         override fun onActivitySaveInstanceState(activity: Activity?, outState: Bundle) {
             if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnSaveInstanceState(activity, outState))
+                globalActivityLife.onNext(ActivityLifeEvent.OnSaveInstanceState(activity, outState).some())
         }
 
         override fun onActivityStopped(activity: Activity?) {
             if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnStop(activity))
+                globalActivityLife.onNext(ActivityLifeEvent.OnStop(activity).some())
         }
 
         override fun onActivityCreated(activity: Activity?, savedInstanceState: Bundle?) {
             if (activity != null)
-                globalActivityLife.makeState(ActivityLifeEvent.OnCreate(activity, savedInstanceState))
+                globalActivityLife.onNext(ActivityLifeEvent.OnCreate(activity, savedInstanceState).some())
         }
 
     }
@@ -508,7 +510,10 @@ class RouteCxt private constructor(val app: Application) {
                 .onErrorComplete()
         }
 
-    fun bindNextActivity(targetType: Intent? = null): Observable<Activity> = globalActivityLife.bindActivityLife()
+    fun bindGlobalActivityLife(): Observable<ActivityLifeEvent> =
+        globalActivityLife.filter { it is Some }.map { (it as Some).t }
+
+    fun bindNextActivity(targetType: Intent? = null): Observable<Activity> = bindGlobalActivityLife()
         .ofType(ActivityLifeEvent.OnCreate::class.java)
             .filter {
                 val component = targetType?.component

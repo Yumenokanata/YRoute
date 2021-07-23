@@ -273,7 +273,7 @@ object ActivitiesRoute {
 
 
 fun CoreEngine<ActivitiesState>.bindApp(): Completable =
-    routeCxt.globalActivityLife.bindActivityLife()
+    routeCxt.bindGlobalActivityLife()
         .map { event ->
             val route = saveActivitiesInstanceState(event) { runBlocking { getCurrentState() } }
                     .copy(tag = "saveActivitiesInstanceState -> ${event.javaClass.simpleName}")
