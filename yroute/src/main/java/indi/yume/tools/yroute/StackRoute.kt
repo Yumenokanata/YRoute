@@ -1770,6 +1770,10 @@ fun <F> saveAndRestoreLogic(event: FragmentLifeEvent): YRoute<StackFragState<F, 
                 else
                     defaultResult
             }
+            is FragmentLifeEvent.OnResume -> {
+                SaveInstanceFragmentUtil.deleteSavedData(event.fragment)
+                defaultResult
+            }
             else -> defaultResult
         }
     }

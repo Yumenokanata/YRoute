@@ -349,6 +349,10 @@ fun saveActivitiesInstanceState(event: ActivityLifeEvent, currentState: () -> Ac
                 else
                     state toT Success(Unit)
             }
+            is ActivityLifeEvent.OnResume -> {
+                SaveInstanceActivityUtil.deleteSavedData(state, event.activity)
+                state toT Success(Unit)
+            }
             else -> state toT Success(Unit)
         }
     }

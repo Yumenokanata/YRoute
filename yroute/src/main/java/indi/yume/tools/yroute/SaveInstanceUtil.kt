@@ -115,6 +115,18 @@ object SaveInstanceActivityUtil {
         } else oldState
     }
 
+    /**
+     * Data saved, but useless
+     */
+    fun deleteSavedData(state: ActivitiesState, activity: Activity) {
+        val target = state.list.find { it.activity == activity }
+        if (target != null) {
+            synchronized(lock) {
+                savedMap = savedMap - target.hashTag
+            }
+        }
+    }
+
     fun routeRestore(bundle: Bundle, activity: Activity): YRoute<ActivitiesState, Unit> =
             routeF { state, cxt ->
                 val newState = restore(bundle, state, activity)
@@ -173,6 +185,20 @@ object SaveInstanceFragmentUtil {
             }
             oldState.restore(fragment, tag)
         } else oldState
+    }
+
+    /**
+     * Data saved, but useless
+     */
+    fun deleteSavedData(fragment: Fragment) {
+        if (fragment is StackFragment) {
+            val hashTag = fragment.controller.hashTag
+            if (hashTag != null) {
+                synchronized(lock) {
+                    savedMap = savedMap - hashTag
+                }
+            }
+        }
     }
 
     fun <F> routeRestore(fragment: Fragment, bundle: Bundle): YRoute<StackFragState<F, StackType<F>>, Unit> =
