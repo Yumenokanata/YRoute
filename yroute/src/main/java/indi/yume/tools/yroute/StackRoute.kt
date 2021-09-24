@@ -227,7 +227,7 @@ open class FragmentBuilder<out F> {
         createIntent = { intent }
     }
 
-    internal var doForFragment: RouteCxt.(Any) -> Unit = { }
+    internal var doForFragment: suspend RouteCxt.(Any) -> Unit = { }
 
     var stackTag: TableTag? = null
 
@@ -246,7 +246,7 @@ open class FragmentBuilder<out F> {
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun withFragment(f: RouteCxt.(F) -> Unit): FragmentBuilder<F> {
+    fun withFragment(f: suspend RouteCxt.(F) -> Unit): FragmentBuilder<F> {
         val action = doForFragment
         doForFragment = { action(it); f(it as F) }
         return this
@@ -283,7 +283,11 @@ interface FragmentParam<T> {
 }
 
 fun <T, P> FragmentBuilder<T>.withParam(param: P): FragmentBuilder<T> where T : FragmentParam<P> =
-    withFragment { f -> f.injector.onNext(param) }
+    withFragment { f ->
+        withContext(YRouteConfig.fragmentParamSendContext) {
+            f.injector.onNext(param)
+        }
+    }
 
 typealias Checker<T> = (T) -> Boolean
 
@@ -639,23 +643,27 @@ object StackRoute {
             val clazzNameE: Either<YResult<F>, String> = intent.component?.className?.right()
                 ?: YResult.fail<F>("Can not get fragment class name, from intent: $intent").left()
 
-            val fragmentE = clazzNameE.flatMap { clazzName ->
-                try {
-                    val fragClazz = Class.forName(clazzName)
-                    val fragmentInstance = fragClazz.newInstance() as F
-                    fragmentInstance.arguments = intent.extras
-                    builder.doForFragment(cxt, fragmentInstance)
-                    if (fragmentInstance is StackFragment)
-                        fragmentInstance.controller.fromIntent = intent
-                    fragmentInstance.right()
-                } catch (e: ClassNotFoundException) {
-                    Fail("Can not find Fragment class: $clazzName", e).left()
-                } catch (e: InstantiationException) {
-                    Fail("Can not create Fragment instance.", e).left()
-                } catch (e: IllegalAccessException) {
-                    Fail("Can not create Fragment instance.", e).left()
-                } catch (e: ClassCastException) {
-                    Fail("Target Fragment type error.", e).left()
+            val fragmentE: Either<YResult<F>, F> = when(clazzNameE) {
+                is Either.Left -> clazzNameE
+                is Either.Right -> {
+                    val clazzName = clazzNameE.b
+                    try {
+                        val fragClazz = Class.forName(clazzName)
+                        val fragmentInstance = fragClazz.newInstance() as F
+                        fragmentInstance.arguments = intent.extras
+                        builder.doForFragment(cxt, fragmentInstance)
+                        if (fragmentInstance is StackFragment)
+                            fragmentInstance.controller.fromIntent = intent
+                        fragmentInstance.right()
+                    } catch (e: ClassNotFoundException) {
+                        Fail("Can not find Fragment class: $clazzName", e).left()
+                    } catch (e: InstantiationException) {
+                        Fail("Can not create Fragment instance.", e).left()
+                    } catch (e: IllegalAccessException) {
+                        Fail("Can not create Fragment instance.", e).left()
+                    } catch (e: ClassCastException) {
+                        Fail("Target Fragment type error.", e).left()
+                    }
                 }
             }
 
