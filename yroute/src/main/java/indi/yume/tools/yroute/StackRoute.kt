@@ -36,6 +36,7 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.rx2.await
+import kotlinx.coroutines.rx2.awaitSingleOrNull
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
@@ -282,7 +283,7 @@ interface FragmentParam<T> {
     }
 }
 
-fun <T, P> FragmentBuilder<T>.withParam(param: P): FragmentBuilder<T> where T : FragmentParam<P> =
+fun <T, P : Any> FragmentBuilder<T>.withParam(param: P): FragmentBuilder<T> where T : FragmentParam<P> =
     withFragment { f ->
         withContext(YRouteConfig.fragmentParamSendContext) {
             f.injector.onNext(param)
@@ -555,7 +556,7 @@ object StackRoute {
                 else (top as? Activity)?.overridePendingTransition(0, 0)
 
                 val act = cxt.bindNextActivity(intent)
-                        .firstElement().await()
+                        .firstElement().awaitSingleOrNull()
 
                 if (act == null) {
                     return@transform vd toT Fail(
@@ -761,7 +762,7 @@ object StackRoute {
                     fragment.bindFragmentLife()
                             .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                             .firstElement()
-                            .await()
+                            .awaitSingleOrNull()
 
                     fragment.onShow(OnShowMode.OnCreate)
                 }
@@ -799,7 +800,7 @@ object StackRoute {
                         fragment.bindFragmentLife()
                             .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                             .firstElement()
-                            .await()
+                            .awaitSingleOrNull()
                         fragment.onShow(OnShowMode.OnCreate)
                     })
                     if (backF != null && backF.isVisible) {
@@ -867,7 +868,7 @@ object StackRoute {
                         fragment.bindFragmentLife()
                                 .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                                 .firstElement()
-                                .await()
+                                .awaitSingleOrNull()
                         fragment.onShow(OnShowMode.OnCreate)
                     }
 
@@ -948,7 +949,7 @@ object StackRoute {
                                         result.t.bindFragmentLife()
                                                 .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                                                 .firstElement()
-                                                .await()
+                                                .awaitSingleOrNull()
                                         result.t.onShow(OnShowMode.OnCreate)
                                     })
                                     if (silentSwitch) vd.ft.hide(result.t)
@@ -1281,7 +1282,7 @@ object StackRoute {
                                         result.t.bindFragmentLife()
                                                 .filter { it.order >= FragmentLifeEvent.OrderOnViewCreated }
                                                 .firstElement()
-                                                .await()
+                                                .awaitSingleOrNull()
                                         result.t.onShow(OnShowMode.OnCreate)
                                     })
                                 }.toList()

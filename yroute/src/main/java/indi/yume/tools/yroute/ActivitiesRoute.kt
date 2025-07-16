@@ -16,6 +16,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.rx2.await
+import kotlinx.coroutines.rx2.awaitSingleOrNull
 import kotlin.random.Random
 
 data class ActivitiesState(val list: List<ActivityData>)
@@ -85,7 +86,7 @@ object ActivitiesRoute {
 
             Logger.d("startActivity", "wait activity.")
             val act = cxt.bindNextActivity(intent)
-                .firstElement().await()
+                .firstElement().awaitSingleOrNull()
             Logger.d("startActivity", "get activity: $act")
 
             if (act == null) {
@@ -114,7 +115,7 @@ object ActivitiesRoute {
                 else top.overridePendingTransition(0, 0)
 
                 val act = cxt.bindNextActivity(intent)
-                    .firstElement().await()
+                    .firstElement().awaitSingleOrNull()
 
                 if (act == null) {
                     return@routeF vd toT Fail(
@@ -147,7 +148,7 @@ object ActivitiesRoute {
                 else top.overridePendingTransition(0, 0)
 
                 val activity = cxt.bindNextActivity(intent)
-                    .firstElement().await()
+                    .firstElement().awaitSingleOrNull()
 
                 if (activity == null) {
                     return@routeF vd toT Fail(
@@ -199,7 +200,7 @@ object ActivitiesRoute {
                 val act = targetItem.activity
                 if (act is ActivityLifecycleOwner)
                     act.bindActivityLife().filter { it.order >= ActivityLifeEvent.OrderOnDestroy }
-                            .firstElement().await()
+                            .firstElement().awaitSingleOrNull()
 
                 val newState = vd.copy(list = vd.list.filter { it.hashTag != targetData.hashTag })
 
@@ -221,7 +222,7 @@ object ActivitiesRoute {
                     val act = targetItem.activity
                     if (act is ActivityLifecycleOwner)
                         act.bindActivityLife().filter { it.order >= ActivityLifeEvent.OrderOnDestroy }
-                                .firstElement().await()
+                                .firstElement().awaitSingleOrNull()
 
                     val newState = vd.copy(list = vd.list.filter { it.hashTag != targetData.hashTag })
 

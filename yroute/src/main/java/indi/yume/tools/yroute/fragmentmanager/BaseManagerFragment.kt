@@ -14,6 +14,7 @@ import indi.yume.tools.yroute.*
 import indi.yume.tools.yroute.datatype.*
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.rx2.await
+import kotlinx.coroutines.rx2.awaitSingleOrNull
 
 abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Fragment, F : StackFragment {
     abstract val core: CoreEngine<ActivitiesState>
@@ -86,12 +87,12 @@ abstract class BaseManagerFragment<F> : Fragment(), StackFragment where F : Frag
 
     suspend fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): Tuple2<Int, Bundle?>? =
             ActivitiesRoute.routeStartActivityForRx(builder).startLazy(core).flattenForYRoute()
-                    .b.await()
+                    .b.awaitSingleOrNull()
 
     suspend fun startFragmentForRx(builder: FragmentBuilder<F>): Tuple2<Int, Bundle?>? =
             StackRoute.run {
                 routeStartFragmentForRx(builder) runAtF this@BaseManagerFragment
-            }.startLazy(core).flattenForYRoute().await()
+            }.startLazy(core).flattenForYRoute().awaitSingleOrNull()
 
     suspend fun start(builder: FragmentBuilder<F>): F =
             StackRoute.run {

@@ -240,7 +240,7 @@ fun <T> Single<T>.toIO(): IO<T> = IO.cancelable { cb ->
 
 fun Completable.toIO(): IO<Unit> = toSingleDefault(Unit).toIO()
 
-fun <T> IO<T>.toSingle(): Single<T> {
+fun <T : Any> IO<T>.toSingle(): Single<T> {
     var ioDisposable: Disposable? = null
 
     return Single.create<T> { emitter ->

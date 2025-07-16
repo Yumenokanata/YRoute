@@ -5,8 +5,8 @@ import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import androidx.annotation.CheckResult
+import arrow.Kind
 import arrow.core.*
-import arrow.higherkind
 import arrow.optics.Lens
 import indi.yume.tools.yroute.*
 import io.reactivex.Completable
@@ -22,7 +22,6 @@ import kotlin.random.Random
 
 
 //<editor-fold desc="YResult<T>">
-@higherkind
 sealed class YResult<out T> : YResultOf<T> {
     companion object {
         fun <T> success(t: T): YResult<T> = Success(t)
@@ -32,6 +31,12 @@ sealed class YResult<out T> : YResultOf<T> {
 }
 data class Success<T>(val t: T) : YResult<T>()
 data class Fail(val message: String, val error: Throwable? = null) : YResult<Nothing>()
+
+class ForYResult private constructor() { companion object }
+typealias YResultOf<T> = Kind<ForYResult, T>
+@Suppress("UNCHECKED_CAST", "NOTHING_TO_INLINE")
+inline fun <T> YResultOf<T>.fix(): YResult<T> =
+    this as YResult<T>
 
 fun <T, R> YResult<T>.map(mapper: (T) -> R): YResult<R> = flatMap { Success(mapper(it)) }
 
@@ -60,13 +65,20 @@ typealias SuspendP<R> = suspend () -> R
 
 
 //<editor-fold desc="YRoute">
-@higherkind
 data class YRoute<S, R>(val run: (S) -> (suspend (RouteCxt) -> Tuple2<S, YResult<R>>),
                         val tag: String = "YRoute") : YRouteOf<S, R> {
     constructor(run: (S) -> (suspend (RouteCxt) -> Tuple2<S, YResult<R>>)): this(run, "YRoute")
 
     companion object
 }
+
+class ForYRoute private constructor() { companion object }
+typealias YRouteOf<F, A> = arrow.Kind2<ForYRoute, F, A>
+typealias YRoutePartialOf<F> = arrow.Kind<ForYRoute, F>
+typealias YRouteKindedJ<F, A> = arrow.HkJ2<ForYRoute, F, A>
+@Suppress("UNCHECKED_CAST", "NOTHING_TO_INLINE")
+inline fun <F, A> YRouteOf<F, A>.fix(): YRoute<F, A> =
+    this as YRoute<F, A>
 
 
 fun <S, R> route(f: (S) -> (suspend (RouteCxt) -> Tuple2<S, YResult<R>>)): YRoute<S, R> =
@@ -461,39 +473,39 @@ class RouteCxt private constructor(val app: Application) {
         BehaviorSubject.create<Option<ActivityLifeEvent>>().toSerialized()
 
     private val callback: Application.ActivityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
-        override fun onActivityPaused(activity: Activity?) {
+        override fun onActivityPaused(activity: Activity) {
             if (activity != null)
                 globalActivityLife.onNext(ActivityLifeEvent.OnPause(activity).some())
         }
 
-        override fun onActivityResumed(activity: Activity?) {
+        override fun onActivityResumed(activity: Activity) {
             if (activity != null)
                 globalActivityLife.onNext(ActivityLifeEvent.OnResume(activity).some())
         }
 
-        override fun onActivityStarted(activity: Activity?) {
+        override fun onActivityStarted(activity: Activity) {
             if (activity != null)
                 globalActivityLife.onNext(ActivityLifeEvent.OnStart(activity).some())
         }
 
-        override fun onActivityDestroyed(activity: Activity?) {
+        override fun onActivityDestroyed(activity: Activity) {
             if (activity != null) {
                 globalActivityLife.onNext(ActivityLifeEvent.OnDestroy(activity).some())
                 globalActivityLife.onNext(none())
             }
         }
 
-        override fun onActivitySaveInstanceState(activity: Activity?, outState: Bundle) {
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {
             if (activity != null)
                 globalActivityLife.onNext(ActivityLifeEvent.OnSaveInstanceState(activity, outState).some())
         }
 
-        override fun onActivityStopped(activity: Activity?) {
+        override fun onActivityStopped(activity: Activity) {
             if (activity != null)
                 globalActivityLife.onNext(ActivityLifeEvent.OnStop(activity).some())
         }
 
-        override fun onActivityCreated(activity: Activity?, savedInstanceState: Bundle?) {
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
             if (activity != null)
                 globalActivityLife.onNext(ActivityLifeEvent.OnCreate(activity, savedInstanceState).some())
         }

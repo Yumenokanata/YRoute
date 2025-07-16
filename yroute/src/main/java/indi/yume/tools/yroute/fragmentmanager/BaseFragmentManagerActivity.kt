@@ -18,6 +18,7 @@ import io.reactivex.subjects.Subject
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.rx2.await
+import kotlinx.coroutines.rx2.awaitSingleOrNull
 
 abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActivity(), ActivityLifecycleOwner, StackHost<F, T>
         where F : Fragment, F : StackFragment {
@@ -90,7 +91,7 @@ abstract class BaseFragmentManagerActivity<F, T : StackType<F>> : AppCompatActiv
 
     suspend fun <A : Activity> startActivityForRx(builder: ActivityBuilder<A>): Tuple2<Int, Bundle?>? =
             ActivitiesRoute.routeStartActivityForRx(builder).startLazy(core).flattenForYRoute()
-                    .b.await()
+                    .b.awaitSingleOrNull()
 
     suspend fun start(builder: FragmentBuilder<F>): F =
             StackRoute.run {

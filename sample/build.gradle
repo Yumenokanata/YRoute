@@ -1,15 +1,17 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
 android {
-    compileSdkVersion 28
-
+    namespace 'indi.yume.tools.yroute.sample'
+    compileSdkVersion 36
 
     defaultConfig {
         applicationId "indi.yume.tools.tools.yroute.sample"
         minSdkVersion 21
-        targetSdkVersion 28
+        targetSdkVersion 36
         versionCode 1
         versionName "1.0"
 
@@ -29,6 +31,16 @@ android {
         }
     }
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+    }
 }
 
 dependencies {
