@@ -13,6 +13,8 @@ import indi.yume.tools.yroute.datatype.*
 import indi.yume.tools.yroute.fragmentmanager.BaseManagerFragment
 import indi.yume.tools.yroute.sample.App
 import indi.yume.tools.yroute.sample.R
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.Subject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -104,7 +106,7 @@ class FragmentOther : BaseFragment(), FragmentParam<OtherParam> {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val s = injector.subscribe {
+        val s = injector.observeOn(AndroidSchedulers.mainThread()).subscribe {
             Toast.makeText(activity, it.toString(), Toast.LENGTH_SHORT).show()
         }
 
