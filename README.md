@@ -1,3 +1,5 @@
+
+
 # YRoute
 
 [![](https://jitpack.io/v/Yumenokanata/YRoute.svg)](https://jitpack.io/#Yumenokanata/YRoute)
@@ -82,7 +84,7 @@ class App : Application() {
 // Use
 launch {
     StackRoute
-        .startStackFragActivity(ActivityBuilder(FragmentStackActivity::class.java))
+        .routeStartStackActivity(ActivityBuilder(FragmentStackActivity::class.java))
         .start(core)
 }
 
@@ -475,8 +477,3 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 </pre>
-
-
-
-
-
